@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="build/appicon.png" width="96" alt="Cockpit logo">
+  <img src="docs/cockpit-logo.png" width="96" alt="Cockpit logo">
 </p>
 
 # Cockpit
