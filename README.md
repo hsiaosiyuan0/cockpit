@@ -22,19 +22,19 @@
 
 ## About
 
-Cockpit is for the part of agent work where the terminal gets too loud.
+Cockpit is a desktop app for supervising terminal-based coding agents after the task has been handed off.
 
-I still start Claude Code and Codex in WezTerm, discuss the task there, and let the original terminal session stay in charge. Once the work is clear, Cockpit watches local session logs, panes, processes, and git working trees so I can stop reading every line of stdout.
+Claude Code and Codex stay in the terminal. Cockpit observes the local artifacts those sessions already produce: session logs, WezTerm panes, process state, and git working trees. Instead of showing another transcript, it turns that activity into an operating picture.
 
-The app answers the questions I actually need while agents are running:
+At a glance, Cockpit should make it clear:
 
-- Who needs my attention?
-- Who is still working?
-- What changed in the repo?
-- Which session is stuck, idle, blocked, or done?
-- Which WezTerm pane should I jump back to?
+- which agents need attention;
+- which runs are working, idle, blocked, drifted, or done;
+- what changed in the working tree;
+- what tools, subagents, and replies led to the current state;
+- which pane to open when human input is needed.
 
-Cockpit is not a chat client and does not proxy Claude or Codex. It is a local operations panel for terminal-based agent sessions.
+Cockpit is not a chat client and does not proxy agent traffic. The original terminal session remains the source of truth.
 
 ## Download
 
