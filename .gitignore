@@ -3,6 +3,7 @@
 # Local binaries and packaged apps
 /cockpit
 /build/bin/
+/dist/
 *.app
 
 # Frontend dependencies and generated bundles

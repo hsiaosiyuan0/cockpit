@@ -1,0 +1,96 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  WAILS_VERSION: v2.12.0
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Check whitespace
+        run: git diff --check
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Build frontend
+        run: npm run build --prefix frontend
+
+      - name: Test Go packages
+        run: go test ./cmd/... ./internal/...
+
+  package-macos:
+    name: Package macOS arm64
+    runs-on: macos-15
+    needs: checks
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails CLI
+        run: |
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          go install "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION"
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build app
+        run: wails build -platform darwin/arm64 -clean -trimpath
+
+      - name: Package artifact
+        run: |
+          SAFE_REF="${GITHUB_REF_NAME//\//-}"
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent build/bin/cockpit.app "dist/cockpit-${SAFE_REF}-${GITHUB_SHA::7}-darwin-arm64.zip"
+          shasum -a 256 dist/*.zip > dist/SHA256SUMS
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cockpit-darwin-arm64-${{ github.sha }}
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS
+          retention-days: 14

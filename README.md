@@ -74,6 +74,16 @@ http://192.168.1.20:17373/
 
 The shared page can read dashboard state, traces, diff radar, flight recorder, settings, and Done Inbox data. It cannot open panes, bind sessions, archive items, edit settings, or start summary/debrief runs.
 
+## GitHub Actions Packaging
+
+GitHub Actions builds the app without a self-hosted runner.
+
+- Pull requests run frontend and Go checks on Ubuntu.
+- Pushes to `main`, version tags, and manual workflow runs build the real macOS `darwin/arm64` app on GitHub's hosted `macos-15` runner.
+- Packaged builds are uploaded as `cockpit-<ref>-<sha>-darwin-arm64.zip` workflow artifacts.
+
+Open the repository's **Actions** tab, choose the latest **Build** run, and download the `cockpit-darwin-arm64-*` artifact.
+
 ## CLI
 
 The CLI is for inspection and maintenance:
