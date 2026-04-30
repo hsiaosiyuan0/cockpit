@@ -1,32 +1,61 @@
 <p align="center">
-  <img src="docs/cockpit-logo.png" width="96" alt="Cockpit logo">
+  <img src="docs/cockpit-logo.png" width="112" alt="Cockpit logo">
 </p>
 
-# Cockpit
+<h1 align="center">Cockpit</h1>
 
-Cockpit is a local flight deck for Claude Code and Codex CLI sessions.
+<p align="center">
+  A local flight deck for Claude Code and Codex CLI sessions.
+</p>
 
-I still start agents in WezTerm and talk through the task there. Once the work is clear, I do not want to keep reading a stream of tool logs just to know whether anything needs me. Cockpit watches the session logs, panes, processes, and git working trees, then gives me one place to check the state of all running agent work.
+<p align="center">
+  <a href="#download">Download</a>
+  ·
+  <a href="#about">About</a>
+  ·
+  <a href="#workflow">Workflow</a>
+  ·
+  <a href="#development">Development</a>
+</p>
 
 ![Cockpit dashboard with mock agent sessions](docs/cockpit-dashboard.png)
 
-Cockpit does not proxy Claude or Codex, and it is not a chat client. The terminal session stays the source of truth. The app is there to answer the operational questions: what is active, what changed, what is stuck, what finished, and which pane should I jump back to.
+## About
 
-V1 is built around WezTerm because it exposes the pane metadata Cockpit needs. The terminal layer is meant to grow: Ghostty, iTerm2, and other terminal emulators are on the list once their pane/process APIs are wired in.
+Cockpit is for the part of agent work where the terminal gets too loud.
 
-## What Is In V1
+I still start Claude Code and Codex in WezTerm, discuss the task there, and let the original terminal session stay in charge. Once the work is clear, Cockpit watches local session logs, panes, processes, and git working trees so I can stop reading every line of stdout.
+
+The app answers the questions I actually need while agents are running:
+
+- Who needs my attention?
+- Who is still working?
+- What changed in the repo?
+- Which session is stuck, idle, blocked, or done?
+- Which WezTerm pane should I jump back to?
+
+Cockpit is not a chat client and does not proxy Claude or Codex. It is a local operations panel for terminal-based agent sessions.
+
+## Download
+
+macOS builds are published on the Releases page.
+
+Go to the [Releases](https://github.com/hsiaosiyuan0/cockpit/releases) page and download the latest `cockpit-*-darwin-arm64.zip`. The zip contains `cockpit.app`.
+
+## What It Shows
 
 - Mission Board for recent Claude Code and Codex sessions.
-- Automatic WezTerm binding with pid, tty, cwd, and process evidence.
+- Automatic WezTerm binding using pid, tty, cwd, and process evidence.
 - Status categories for attention, blocked, drift, working, idle, and done.
 - Mission Radar, Master Caution, Diff Radar, Trace, Flight Recorder, and Status Logic views.
 - Done Inbox for completed tasks that still need review.
 - One-click summaries and debriefs through isolated headless Codex runs.
 - Command palette for search, open, bind, hide, summary, and debrief actions.
-- macOS WezTerm focus after pane activation.
 - Readonly LAN dashboard for watching from another device.
 
-## How I Use It
+V1 is built around WezTerm because it exposes the pane metadata Cockpit needs. The terminal layer is meant to grow: Ghostty, iTerm2, and other terminal emulators are on the list once their pane/process APIs are wired in.
+
+## Workflow
 
 1. Start Claude Code or Codex in WezTerm.
 2. Discuss the task and confirm what the agent should do.
@@ -35,7 +64,13 @@ V1 is built around WezTerm because it exposes the pane metadata Cockpit needs. T
 5. When something needs input, open the original pane from Cockpit.
 6. Review completed work from the Done Inbox or Debrief panel.
 
-## Run
+## LAN View
+
+The desktop app can start a readonly web dashboard for the local network.
+
+The shared page can read dashboard state, traces, diff radar, flight recorder, settings, and Done Inbox data. It cannot open panes, bind sessions, archive items, edit settings, or start summary/debrief runs.
+
+## Development
 
 Requirements:
 
@@ -64,35 +99,23 @@ If `wails` is not on your `PATH`, use the local Wails binary you installed. In m
 /tmp/cockpit-bin/wails build
 ```
 
-## Readonly LAN View
-
-Use the LAN share button in the toolbar to start a local readonly web server. Cockpit will show an address like:
-
-```text
-http://192.168.1.20:17373/
-```
-
-The shared page can read dashboard state, traces, diff radar, flight recorder, settings, and Done Inbox data. It cannot open panes, bind sessions, archive items, edit settings, or start summary/debrief runs.
-
-## GitHub Actions Packaging
-
-GitHub Actions builds the app without a self-hosted runner.
-
-- Pull requests run frontend and Go checks on Ubuntu.
-- Pushes to `main`, version tags, and manual workflow runs build the real macOS `darwin/arm64` app on GitHub's hosted `macos-15` runner.
-- Packaged builds are uploaded as `cockpit-<ref>-<sha>-darwin-arm64.zip` workflow artifacts.
-- Pushing a `v*` tag also creates a GitHub Release and attaches the macOS zip plus `SHA256SUMS`.
-
-Open the repository's **Actions** tab, choose the latest **Build** run, and download the `cockpit-darwin-arm64-*` artifact.
-
-To publish a release:
+Work on the frontend:
 
 ```sh
-git tag -a v0.1.0 -m "v0.1.0"
-git push origin v0.1.0
+cd frontend
+npm install
+npm run dev
 ```
 
-After the workflow finishes, the packaged app will be available on the repository's **Releases** page.
+Opened outside Wails, the frontend uses mock data. Inside the desktop app, it talks to the Go backend through Wails bindings.
+
+Run checks:
+
+```sh
+go test ./...
+cd frontend && npm run build
+wails build
+```
 
 ## CLI
 
@@ -112,26 +135,6 @@ cockpit attach <task-or-session-prefix>
 cockpit attach --detach <task-or-session-prefix>
 ```
 
-## Frontend Work
+## Data
 
-```sh
-cd frontend
-npm install
-npm run dev
-```
-
-Opened outside Wails, the frontend uses mock data. Inside the desktop app, it talks to the Go backend through Wails bindings.
-
-## Settings And Data
-
-Cockpit stores settings under `~/.local/state/cockpit` by default. The settings panel covers owner name, Claude/Codex/WezTerm paths, idle and stuck thresholds, binding behavior, hidden sessions, LLM summaries, notifications, quiet hours, and attention rules.
-
-Summaries and debriefs run through isolated headless Codex processes. Cockpit marks those internal runs and filters them out of the dashboard, so its own analysis does not show up as user work.
-
-## Development Checks
-
-```sh
-go test ./...
-cd frontend && npm run build
-wails build
-```
+Cockpit stores settings under `~/.local/state/cockpit` by default. Summaries and debriefs run through isolated headless Codex processes. Cockpit marks those internal runs and filters them out of the dashboard, so its own analysis does not show up as user work.
