@@ -1,11 +1,73 @@
 import { mockSnapshot } from "./mock";
-import type { Settings, Snapshot, Task } from "./types";
+import type { Settings, ShareServerInfo, Snapshot, Task } from "./types";
 
 const api = () => window.go?.main?.App;
 
 export const hasNativeAPI = () => Boolean(api());
 
+export interface RuntimeInfo {
+  source: string;
+  readonly: boolean;
+}
+
+let runtimeInfoCache: RuntimeInfo | null = null;
+
+export function initialRuntimeInfo(useDemo = false): RuntimeInfo {
+  if (hasNativeAPI()) {
+    return { source: useDemo ? "DEMO" : "LIVE", readonly: false };
+  }
+  if (useBrowserMock()) {
+    return { source: "BROWSER MOCK", readonly: false };
+  }
+  return { source: "LAN READONLY", readonly: true };
+}
+
+export async function getRuntimeInfo(useDemo = false): Promise<RuntimeInfo> {
+  if (hasNativeAPI()) {
+    return { source: useDemo ? "DEMO" : "LIVE", readonly: false };
+  }
+  if (useBrowserMock()) {
+    return { source: "BROWSER MOCK", readonly: false };
+  }
+  if (runtimeInfoCache) {
+    return runtimeInfoCache;
+  }
+  try {
+    const response = await fetch("/api/meta", { cache: "no-store" });
+    if (response.ok) {
+      const meta = await response.json() as Partial<RuntimeInfo>;
+      runtimeInfoCache = {
+        source: meta.source || "LAN READONLY",
+        readonly: meta.readonly !== false,
+      };
+      return runtimeInfoCache;
+    }
+  } catch {
+    // Fall through to mock mode when the built frontend is opened without the readonly server.
+  }
+  runtimeInfoCache = { source: "BROWSER MOCK", readonly: false };
+  return runtimeInfoCache;
+}
+
+export async function startReadonlyServer(): Promise<ShareServerInfo | null> {
+  const native = api();
+  if (!native) {
+    return null;
+  }
+  return native.StartReadonlyServer();
+}
+
+export async function getShareServer(): Promise<ShareServerInfo | null> {
+  const native = api();
+  if (!native) {
+    return null;
+  }
+  const info = await native.GetShareServer();
+  return info?.url ? info : null;
+}
+
 export const defaultSettings: Settings = {
+  cockpit_owner: "",
   codex_home: "~/.codex",
   claude_home: "~/.claude",
   codex_bin: "codex",
@@ -38,26 +100,33 @@ export const defaultSettings: Settings = {
 
 export async function getSnapshot(useDemo: boolean): Promise<Snapshot> {
   const native = api();
-  if (!native) {
-    return mockSnapshot();
-  }
-  if (useDemo) {
+  if (native && useDemo) {
     return native.GetDemoSnapshot();
   }
-  return native.GetSnapshot();
+  if (native) {
+    return native.GetSnapshot();
+  }
+  if ((await getRuntimeInfo(useDemo)).readonly) {
+    return fetchReadonly<Snapshot>(`/api/snapshot${useDemo ? "?demo=true" : ""}`, "snapshot refresh failed");
+  }
+  return mockSnapshot();
 }
 
 export async function getSettings(): Promise<Settings> {
   const native = api();
-  if (!native) {
-    return defaultSettings;
+  if (native) {
+    return native.GetSettings();
   }
-  return native.GetSettings();
+  if ((await getRuntimeInfo()).readonly) {
+    return fetchReadonly<Settings>("/api/settings", "settings load failed");
+  }
+  return defaultSettings;
 }
 
 export async function saveSettings(settings: Settings): Promise<Settings> {
   const native = api();
   if (!native) {
+    await requireWritable();
     return settings;
   }
   return native.SaveSettings(settings);
@@ -66,6 +135,7 @@ export async function saveSettings(settings: Settings): Promise<Settings> {
 export async function openPane(paneID: number): Promise<void> {
   const native = api();
   if (!native) {
+    await requireWritable();
     return;
   }
   await native.OpenPane(paneID);
@@ -74,6 +144,7 @@ export async function openPane(paneID: number): Promise<void> {
 export async function archiveTask(taskID: string): Promise<Snapshot> {
   const native = api();
   if (!native) {
+    await requireWritable();
     const snap = mockSnapshot();
     snap.tasks = snap.tasks.map((task) => (task.id === taskID ? { ...task, archived: true } : task));
     return snap;
@@ -84,6 +155,7 @@ export async function archiveTask(taskID: string): Promise<Snapshot> {
 export async function ignoreTask(taskID: string): Promise<Snapshot> {
   const native = api();
   if (!native) {
+    await requireWritable();
     const snap = mockSnapshot();
     snap.tasks = snap.tasks.map((task) => (task.id === taskID ? { ...task, ignored: true } : task));
     return snap;
@@ -94,6 +166,7 @@ export async function ignoreTask(taskID: string): Promise<Snapshot> {
 export async function restoreTask(taskID: string): Promise<Snapshot> {
   const native = api();
   if (!native) {
+    await requireWritable();
     const snap = mockSnapshot();
     snap.tasks = snap.tasks.map((task) => (task.id === taskID ? { ...task, archived: false, ignored: false } : task));
     return snap;
@@ -104,6 +177,7 @@ export async function restoreTask(taskID: string): Promise<Snapshot> {
 export async function attachTask(taskID: string, paneID: number): Promise<Snapshot> {
   const native = api();
   if (!native) {
+    await requireWritable();
     const snap = mockSnapshot();
     const pane = snap.panes.find((candidate) => candidate.pane_id === paneID);
     snap.tasks = snap.tasks.map((task) =>
@@ -126,6 +200,7 @@ export async function attachTask(taskID: string, paneID: number): Promise<Snapsh
 export async function detachTask(taskID: string): Promise<Snapshot> {
   const native = api();
   if (!native) {
+    await requireWritable();
     const snap = mockSnapshot();
     snap.tasks = snap.tasks.map((task) =>
       task.id === taskID
@@ -146,6 +221,7 @@ export async function detachTask(taskID: string): Promise<Snapshot> {
 export async function refreshSummary(taskID: string): Promise<Task> {
   const native = api();
   if (!native) {
+    await requireWritable();
     const task = mockSnapshot().tasks.find((candidate) => candidate.id === taskID);
     if (!task) {
       throw new Error(`task ${taskID} not found`);
@@ -158,6 +234,7 @@ export async function refreshSummary(taskID: string): Promise<Task> {
 export async function generateDebrief(taskID: string): Promise<Task> {
   const native = api();
   if (!native) {
+    await requireWritable();
     const task = mockSnapshot().tasks.find((candidate) => candidate.id === taskID);
     if (!task) {
       throw new Error(`task ${taskID} not found`);
@@ -179,6 +256,7 @@ export async function generateDebrief(taskID: string): Promise<Task> {
 export async function reviewDoneItem(itemID: string): Promise<Snapshot> {
   const native = api();
   if (!native) {
+    await requireWritable();
     const snap = mockSnapshot();
     snap.done_inbox = (snap.done_inbox ?? []).map((item) => (item.id === itemID ? { ...item, reviewed: true } : item));
     return snap;
@@ -189,9 +267,37 @@ export async function reviewDoneItem(itemID: string): Promise<Snapshot> {
 export async function archiveDoneItem(itemID: string): Promise<Snapshot> {
   const native = api();
   if (!native) {
+    await requireWritable();
     const snap = mockSnapshot();
     snap.done_inbox = (snap.done_inbox ?? []).filter((item) => item.id !== itemID);
     return snap;
   }
   return native.ArchiveDoneItem(itemID);
+}
+
+async function requireWritable() {
+  if ((await getRuntimeInfo()).readonly) {
+    throw new Error("readonly LAN cockpit");
+  }
+}
+
+async function fetchReadonly<T>(url: string, fallback: string): Promise<T> {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(await readonlyError(response, fallback));
+  }
+  return response.json() as Promise<T>;
+}
+
+async function readonlyError(response: Response, fallback: string) {
+  try {
+    const body = await response.json() as { error?: string };
+    return body.error || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function useBrowserMock() {
+  return import.meta.env.DEV || window.location.protocol === "file:";
 }

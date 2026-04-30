@@ -225,6 +225,7 @@ export interface AttentionRule {
 }
 
 export interface Settings {
+  cockpit_owner?: string;
   codex_home: string;
   claude_home: string;
   codex_bin: string;
@@ -251,6 +252,8 @@ export interface CockpitAPI {
   GetSnapshot(): Promise<Snapshot>;
   GetDemoSnapshot(): Promise<Snapshot>;
   GetSettings(): Promise<Settings>;
+  GetShareServer(): Promise<ShareServerInfo>;
+  StartReadonlyServer(): Promise<ShareServerInfo>;
   SaveSettings(settings: Settings): Promise<Settings>;
   OpenPane(paneID: number): Promise<void>;
   ArchiveTask(taskID: string): Promise<Snapshot>;
@@ -262,6 +265,12 @@ export interface CockpitAPI {
   GenerateDebrief(taskID: string): Promise<Task>;
   ReviewDoneItem(itemID: string): Promise<Snapshot>;
   ArchiveDoneItem(itemID: string): Promise<Snapshot>;
+}
+
+export interface ShareServerInfo {
+  url: string;
+  listen_addr: string;
+  readonly: boolean;
 }
 
 declare global {

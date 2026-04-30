@@ -23,6 +23,7 @@ Cockpit is not a chat client and does not proxy Claude or Codex. The original te
 - Generates summaries and debriefs with an isolated headless Codex run.
 - Opens the original WezTerm pane when I need to respond.
 - On macOS, focuses WezTerm after pane activation.
+- Can start a readonly LAN dashboard so another device can watch without controlling my sessions.
 
 ## Current Shape
 
@@ -69,6 +70,16 @@ npm run dev
 
 When the frontend is opened outside Wails, it falls back to mock data. Inside the desktop app it calls the Go backend through Wails bindings.
 
+## Share Readonly On The LAN
+
+The desktop app has a LAN share button in the toolbar. It starts a small readonly web server and shows a URL like:
+
+```text
+http://192.168.1.20:17373/
+```
+
+That page is for watching only. It can read the dashboard state, traces, diff radar, flight recorder, settings, and Done Inbox, but it cannot open WezTerm panes, bind sessions, archive items, edit settings, or kick off summary/debrief runs.
+
 ## CLI And TUI
 
 ```sh
@@ -89,6 +100,7 @@ cockpit attach --detach <task-or-session-prefix>
 
 The desktop app has a settings panel for:
 
+- Cockpit owner name for the shared web welcome screen
 - Claude, Codex, and WezTerm paths
 - idle and stuck thresholds
 - automatic vs manual binding

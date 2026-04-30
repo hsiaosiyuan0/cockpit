@@ -30,6 +30,10 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function GetShareServer() {
+  return window['go']['main']['App']['GetShareServer']();
+}
+
 export function GetSnapshot() {
   return window['go']['main']['App']['GetSnapshot']();
 }
@@ -56,4 +60,8 @@ export function ReviewDoneItem(arg1) {
 
 export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
+}
+
+export function StartReadonlyServer() {
+  return window['go']['main']['App']['StartReadonlyServer']();
 }

@@ -26,6 +26,7 @@ type App struct {
 	initErr error
 
 	mu                     sync.Mutex
+	share                  *readonlyServer
 	seenStatuses           map[string]cockpitapp.Status
 	seenNotificationStates map[string]string
 	notifyReady            bool

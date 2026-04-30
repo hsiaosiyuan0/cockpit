@@ -36,15 +36,20 @@ import {
   detachTask,
   generateDebrief,
   getSettings,
+  getRuntimeInfo,
+  getShareServer,
   getSnapshot,
   hasNativeAPI,
   ignoreTask,
+  initialRuntimeInfo,
   openPane,
   refreshSummary,
   reviewDoneItem,
   restoreTask,
   saveSettings,
+  startReadonlyServer,
 } from "./api";
+import type { RuntimeInfo } from "./api";
 import type {
   AttentionRule,
   DiffRadar,
@@ -110,6 +115,7 @@ const inspectorTabs: Array<{ id: InspectorTab; label: string }> = [
 ];
 
 function App() {
+  const nativeRuntime = hasNativeAPI();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [selectedID, setSelectedID] = useState<string>("");
   const [useDemo, setUseDemo] = useState(false);
@@ -132,9 +138,17 @@ function App() {
   const [expandedPanel, setExpandedPanel] = useState<ExpandablePanel | null>(null);
   const [closingPanel, setClosingPanel] = useState<ExpandablePanel | null>(null);
   const [settings, setSettings] = useState<CockpitSettings>(defaultSettings);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo>(() => initialRuntimeInfo(useDemo));
+  const [shareURL, setShareURL] = useState("");
+  const [sharing, setSharing] = useState(false);
+  const [webWelcomeOpen, setWebWelcomeOpen] = useState(false);
   const showUnbound = settings.show_unbound;
+  const readonly = runtimeInfo.readonly;
+  const cockpitOwner = settings.cockpit_owner?.trim() ?? "";
+  const welcomeOwnerKey = cockpitOwner || "__anonymous__";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -167,17 +181,65 @@ function App() {
       .then((next) => {
         if (!cancelled) {
           setSettings(next);
+          setSettingsLoaded(true);
         }
       })
       .catch((error) => {
         if (!cancelled) {
           setMessage(error instanceof Error ? error.message : "settings load failed");
+          setSettingsLoaded(true);
         }
       });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getRuntimeInfo(useDemo)
+      .then((next) => {
+        if (!cancelled) {
+          setRuntimeInfo(next);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRuntimeInfo(initialRuntimeInfo(useDemo));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [useDemo]);
+
+  useEffect(() => {
+    if (!hasNativeAPI()) {
+      return;
+    }
+    let cancelled = false;
+    getShareServer()
+      .then((info) => {
+        if (!cancelled && info?.url) {
+          setShareURL(info.url);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (nativeRuntime || !settingsLoaded) {
+      return;
+    }
+    const dismissed = window.localStorage.getItem("cockpit.webWelcomeDismissed") === "1";
+    const dismissedOwner = window.localStorage.getItem("cockpit.webWelcomeDismissedOwner") || "";
+    if (!dismissed || dismissedOwner !== welcomeOwnerKey) {
+      setWebWelcomeOpen(true);
+    }
+  }, [nativeRuntime, settingsLoaded, welcomeOwnerKey]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(new Date()), 1000);
@@ -230,7 +292,7 @@ function App() {
   const stats = useMemo(() => collectStats(snapshot, showUnbound), [showUnbound, snapshot]);
   const doneInbox = snapshot?.done_inbox ?? [];
   const unreadDoneCount = doneInbox.filter((item) => !item.reviewed).length;
-  const source = hasNativeAPI() ? (useDemo ? "DEMO" : "LIVE") : "BROWSER MOCK";
+  const source = hasNativeAPI() ? (useDemo ? "DEMO" : "LIVE") : runtimeInfo.source;
   const visiblePanel = expandedPanel ?? closingPanel;
 
   const replaceSnapshot = (next: Snapshot) => {
@@ -238,7 +300,21 @@ function App() {
     setMessage(`${displayTasks(next, showHidden, showUnbound).length} visible / ${hiddenCount(next)} hidden`);
   };
 
+  const blockReadonlyAction = () => {
+    setMessage("readonly LAN cockpit");
+  };
+
+  const dismissWebWelcome = useCallback(() => {
+    window.localStorage.setItem("cockpit.webWelcomeDismissed", "1");
+    window.localStorage.setItem("cockpit.webWelcomeDismissedOwner", welcomeOwnerKey);
+    setWebWelcomeOpen(false);
+  }, [welcomeOwnerKey]);
+
   const handleOpen = async (task: Task | undefined) => {
+    if (readonly) {
+      blockReadonlyAction();
+      return;
+    }
     const paneID = task?.binding.pane?.pane_id;
     if (paneID === undefined) {
       setMessage("selected task is not bound to a pane");
@@ -277,6 +353,10 @@ function App() {
   };
 
   const handleArchive = async (task: Task | undefined) => {
+    if (readonly) {
+      blockReadonlyAction();
+      return;
+    }
     if (!task) {
       return;
     }
@@ -289,6 +369,10 @@ function App() {
   };
 
   const handleIgnore = async (task: Task | undefined) => {
+    if (readonly) {
+      blockReadonlyAction();
+      return;
+    }
     if (!task) {
       return;
     }
@@ -301,6 +385,10 @@ function App() {
   };
 
   const handleRestore = async (task: Task | undefined) => {
+    if (readonly) {
+      blockReadonlyAction();
+      return;
+    }
     if (!task) {
       return;
     }
@@ -313,6 +401,10 @@ function App() {
   };
 
   const handleAttach = async (task: Task | undefined, paneID: number) => {
+    if (readonly) {
+      blockReadonlyAction();
+      return;
+    }
     if (!task) {
       return;
     }
@@ -329,6 +421,10 @@ function App() {
   };
 
   const handleDetach = async (task: Task | undefined) => {
+    if (readonly) {
+      blockReadonlyAction();
+      return;
+    }
     if (!task) {
       return;
     }
@@ -341,6 +437,10 @@ function App() {
   };
 
   const handleSummary = async (task: Task | undefined) => {
+    if (readonly) {
+      blockReadonlyAction();
+      return;
+    }
     if (!task) {
       return;
     }
@@ -369,6 +469,10 @@ function App() {
   };
 
   const handleDebrief = async (task: Task | undefined) => {
+    if (readonly) {
+      blockReadonlyAction();
+      return;
+    }
     if (!task) {
       return;
     }
@@ -397,6 +501,10 @@ function App() {
   };
 
   const handleReviewDone = async (item: DoneInboxItem) => {
+    if (readonly) {
+      blockReadonlyAction();
+      return;
+    }
     try {
       replaceSnapshot(await reviewDoneItem(item.id));
       setMessage(`reviewed ${item.project}`);
@@ -406,6 +514,10 @@ function App() {
   };
 
   const handleArchiveDone = async (item: DoneInboxItem) => {
+    if (readonly) {
+      blockReadonlyAction();
+      return;
+    }
     try {
       replaceSnapshot(await archiveDoneItem(item.id));
       setMessage(`archived done item ${item.project}`);
@@ -422,6 +534,10 @@ function App() {
   };
 
   const handleSaveSettings = async (next: CockpitSettings) => {
+    if (readonly) {
+      blockReadonlyAction();
+      return;
+    }
     setSavingSettings(true);
     try {
       const saved = await saveSettings(next);
@@ -436,10 +552,30 @@ function App() {
     }
   };
 
+  const handleStartShare = async () => {
+    if (!hasNativeAPI()) {
+      return;
+    }
+    setSharing(true);
+    try {
+      const info = await startReadonlyServer();
+      if (!info) {
+        setMessage("readonly dashboard is unavailable outside the desktop app");
+        return;
+      }
+      setShareURL(info.url);
+      setMessage(`readonly dashboard ${info.url}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "readonly dashboard start failed");
+    } finally {
+      setSharing(false);
+    }
+  };
+
   return (
     <>
-      <main className="shell">
-        <div className="window-chrome" aria-hidden="true" />
+      <main className={`shell ${nativeRuntime ? "native-shell" : "web-shell"}`}>
+        {nativeRuntime ? <div className="window-chrome" aria-hidden="true" /> : null}
         <header className="topbar">
         <div className="brand">
           <div className="brand-mark" aria-hidden="true">
@@ -473,6 +609,28 @@ function App() {
             <Radar size={15} />
             <span>{boardMode.toUpperCase()}</span>
           </button>
+          {hasNativeAPI() ? (
+            <button
+              className={`icon-button ${shareURL ? "active" : ""}`}
+              type="button"
+              title={shareURL ? `Readonly LAN dashboard: ${shareURL}` : "Start readonly LAN dashboard"}
+              disabled={sharing}
+              onClick={() => void handleStartShare()}
+            >
+              <SatelliteDish size={16} className={sharing ? "pulse-icon" : ""} />
+            </button>
+          ) : readonly ? (
+            <div className="readonly-chip" title="Readonly LAN dashboard">
+              <Eye size={13} />
+              <span>READONLY</span>
+            </div>
+          ) : null}
+          {shareURL ? (
+            <div className="share-chip" title={shareURL}>
+              <span>LAN</span>
+              <strong>{shareURL.replace(/^https?:\/\//, "")}</strong>
+            </div>
+          ) : null}
           <button
             className={`seg-button ${useDemo ? "active" : ""}`}
             type="button"
@@ -490,7 +648,7 @@ function App() {
           >
             {showHidden ? <Eye size={16} /> : <EyeOff size={16} />}
           </button>
-          <button className="icon-button" type="button" title="Settings" onClick={() => setSettingsOpen(true)}>
+          <button className="icon-button" type="button" title={readonly ? "Readonly LAN view" : "Settings"} disabled={readonly} onClick={() => setSettingsOpen(true)}>
             <SettingsIcon size={16} />
           </button>
           <div className="clock">
@@ -539,13 +697,17 @@ function App() {
                   <div
                     role="button"
                     tabIndex={0}
-                    title={task.binding.pane ? "Double-click or press Enter to open the bound WezTerm pane" : "Select task"}
+                    title={readonly ? "Readonly LAN view: select task" : task.binding.pane ? "Double-click or press Enter to open the bound WezTerm pane" : "Select task"}
                     className={`task-row flight-strip ${task.id === selected?.id ? "selected" : ""} ${launchingID === task.id ? "launching" : ""} ${isHidden(task) ? "hidden-row" : ""}`}
                     key={task.id}
                     onClick={() => setSelectedID(task.id)}
-                    onDoubleClick={() => void handleOpen(task)}
+                    onDoubleClick={() => {
+                      if (!readonly) {
+                        void handleOpen(task);
+                      }
+                    }}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") {
+                      if (event.key === "Enter" && !readonly) {
                         event.preventDefault();
                         void handleOpen(task);
                       }
@@ -556,9 +718,9 @@ function App() {
                     <span className="project callsign">{callsign(task)}</span>
                     <span className="age">{relativeAge(task.session.last_event_at)}</span>
                     <span
-                      className={`link ${manualBinding(task) ? "manual" : task.binding.pane ? "bound" : ""}`}
+                      className={`link ${manualBinding(task) ? "manual" : task.binding.pane ? "bound" : ""} ${readonly ? "readonly" : ""}`}
                       onClick={(event) => {
-                        if (!task.binding.pane) {
+                        if (!task.binding.pane || readonly) {
                           return;
                         }
                         event.stopPropagation();
@@ -598,6 +760,7 @@ function App() {
             refreshing={refreshingID === selected?.id}
             debriefing={debriefingID === selected?.id}
             summaryEnabled={settings.enable_llm_summary}
+            readonly={readonly}
             expandedPanel={visiblePanel}
             closingPanel={closingPanel}
             onExpandPanel={openPanel}
@@ -631,14 +794,19 @@ function App() {
       {inboxOpen ? (
         <DoneInboxPanel
           items={doneInbox}
+          readonly={readonly}
           onClose={() => setInboxOpen(false)}
           onOpenItem={(item) => {
+            if (readonly) {
+              blockReadonlyAction();
+              return;
+            }
             selectTaskID(item.task_id);
             setInboxOpen(false);
             const task = tasks.find((candidate) => candidate.id === item.task_id);
             if (task) {
               void handleOpen(task);
-            } else if (item.pane_id !== undefined) {
+            } else if (item.pane_id !== undefined && !readonly) {
               void openPane(item.pane_id);
             }
           }}
@@ -650,6 +818,7 @@ function App() {
         <CommandPalette
           tasks={tasks}
           missions={snapshot?.missions ?? []}
+          readonly={readonly}
           onClose={() => setCommandOpen(false)}
           onSelectTask={(taskID) => {
             selectTaskID(taskID);
@@ -680,7 +849,47 @@ function App() {
           }}
         />
       ) : null}
+      {webWelcomeOpen ? <WebWelcomeModal owner={cockpitOwner} readonly={readonly} source={source} onClose={dismissWebWelcome} /> : null}
     </>
+  );
+}
+
+function WebWelcomeModal({ owner, readonly, source, onClose }: { owner: string; readonly: boolean; source: string; onClose: () => void }) {
+  const ownerLabel = owner ? `这是 ${owner} 的驾驶舱` : readonly ? "Readonly flight deck" : "Browser preview";
+  return (
+    <div className="settings-overlay welcome-overlay" role="dialog" aria-modal="true" aria-label="Welcome to Cockpit">
+      <div className="welcome-dialog">
+        <div className="welcome-beacon" aria-hidden="true">
+          <SatelliteDish size={28} />
+          <span />
+        </div>
+        <div className="welcome-copy">
+          <span className="welcome-kicker">COCKPIT / {source}</span>
+          <h2>Welcome aboard</h2>
+          <p>
+            <strong>{ownerLabel}</strong>
+            <span>{readonly ? "Live LAN view. Watch only." : "Browser preview. Mock controls only."}</span>
+          </p>
+        </div>
+        <div className="welcome-status-grid">
+          <div>
+            <span>mode</span>
+            <strong>{readonly ? "watch only" : "preview"}</strong>
+          </div>
+          <div>
+            <span>refresh</span>
+            <strong>5s sweep</strong>
+          </div>
+          <div>
+            <span>control</span>
+            <strong>{readonly ? "local app" : "mock data"}</strong>
+          </div>
+        </div>
+        <button className="action-button primary welcome-action" type="button" onClick={onClose}>
+          Enter Cockpit
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1271,12 +1480,14 @@ function FlightRecorder({
 
 function DoneInboxPanel({
   items,
+  readonly,
   onClose,
   onOpenItem,
   onReview,
   onArchive,
 }: {
   items: DoneInboxItem[];
+  readonly: boolean;
   onClose: () => void;
   onOpenItem: (item: DoneInboxItem) => void;
   onReview: (item: DoneInboxItem) => void;
@@ -1309,9 +1520,9 @@ function DoneInboxPanel({
                   <p>{item.summary || "no final summary"}</p>
                 </div>
                 <div className="inbox-actions">
-                  <button className="action-button primary" type="button" onClick={() => onOpenItem(item)}>Open</button>
-                  <button className="action-button" type="button" onClick={() => onReview(item)}>Review</button>
-                  <button className="icon-button" type="button" title="Archive done item" onClick={() => onArchive(item)}>
+                  <button className="action-button primary" type="button" disabled={readonly} onClick={() => onOpenItem(item)}>Open</button>
+                  <button className="action-button" type="button" disabled={readonly} onClick={() => onReview(item)}>Review</button>
+                  <button className="icon-button" type="button" title={readonly ? "Readonly LAN view" : "Archive done item"} disabled={readonly} onClick={() => onArchive(item)}>
                     <Archive size={15} />
                   </button>
                 </div>
@@ -1327,6 +1538,7 @@ function DoneInboxPanel({
 function CommandPalette({
   tasks,
   missions,
+  readonly,
   onClose,
   onSelectTask,
   onOpenTask,
@@ -1334,6 +1546,7 @@ function CommandPalette({
 }: {
   tasks: Task[];
   missions: Mission[];
+  readonly: boolean;
   onClose: () => void;
   onSelectTask: (taskID: string) => void;
   onOpenTask: (task: Task) => void;
@@ -1367,11 +1580,11 @@ function CommandPalette({
           <div className="command-section">
             <span className="command-section-title">Actions</span>
             <div className="command-action-grid">
-              <button type="button" disabled={!primaryTask} onClick={() => primaryTask && onOpenTask(primaryTask)}>
+              <button type="button" disabled={!primaryTask || readonly} onClick={() => primaryTask && onOpenTask(primaryTask)}>
                 <MonitorUp size={14} />
                 <strong>Open Pane</strong>
               </button>
-              <button type="button" disabled={!primaryTask} onClick={() => primaryTask && onDebrief(primaryTask)}>
+              <button type="button" disabled={!primaryTask || readonly} onClick={() => primaryTask && onDebrief(primaryTask)}>
                 <FileText size={14} />
                 <strong>Generate Debrief</strong>
               </button>
@@ -1409,10 +1622,10 @@ function CommandPalette({
                     <strong>{task.session.title || repoName(task)}</strong>
                     <span>{task.summary || task.session.cwd}</span>
                   </button>
-                  <button type="button" title="Open pane" onClick={() => onOpenTask(task)}>
+                  <button type="button" title={readonly ? "Readonly LAN view" : "Open pane"} disabled={readonly} onClick={() => onOpenTask(task)}>
                     <MonitorUp size={14} />
                   </button>
-                  <button type="button" title="Generate debrief" onClick={() => onDebrief(task)}>
+                  <button type="button" title={readonly ? "Readonly LAN view" : "Generate debrief"} disabled={readonly} onClick={() => onDebrief(task)}>
                     <FileText size={14} />
                   </button>
                 </div>
@@ -1486,6 +1699,7 @@ function TaskDetail({
   refreshing,
   debriefing,
   summaryEnabled,
+  readonly,
   expandedPanel,
   closingPanel,
   onExpandPanel,
@@ -1504,6 +1718,7 @@ function TaskDetail({
   refreshing: boolean;
   debriefing: boolean;
   summaryEnabled: boolean;
+  readonly: boolean;
   expandedPanel: ExpandablePanel | null;
   closingPanel: ExpandablePanel | null;
   onExpandPanel: (panel: ExpandablePanel) => void;
@@ -1564,26 +1779,26 @@ function TaskDetail({
         )}
 
         <div className="action-row">
-          <button className="action-button primary" type="button" title="Open pane" onClick={onOpen}>
+          <button className="action-button primary" type="button" title={readonly ? "Readonly LAN view" : "Open pane"} disabled={readonly} onClick={onOpen}>
             <MonitorUp size={15} />
             <span>Open</span>
           </button>
-          <button className="action-button" type="button" title={summaryEnabled ? "Refresh summary" : "LLM summary disabled"} disabled={!summaryEnabled} onClick={onSummary}>
+          <button className="action-button" type="button" title={readonly ? "Readonly LAN view" : summaryEnabled ? "Refresh summary" : "LLM summary disabled"} disabled={readonly || !summaryEnabled} onClick={onSummary}>
             <RefreshCw size={15} className={refreshing ? "spin" : ""} />
             <span>Summary</span>
           </button>
-          <button className="action-button" type="button" title={summaryEnabled ? "Generate debrief" : "LLM summary disabled"} disabled={!summaryEnabled} onClick={onDebrief}>
+          <button className="action-button" type="button" title={readonly ? "Readonly LAN view" : summaryEnabled ? "Generate debrief" : "LLM summary disabled"} disabled={readonly || !summaryEnabled} onClick={onDebrief}>
             <FileText size={15} className={debriefing ? "pulse-icon" : ""} />
             <span>Debrief</span>
           </button>
-          <button className="icon-button" type="button" title="Archive" onClick={onArchive}>
+          <button className="icon-button" type="button" title={readonly ? "Readonly LAN view" : "Archive"} disabled={readonly} onClick={onArchive}>
             <Archive size={15} />
           </button>
-          <button className="icon-button" type="button" title="Ignore" onClick={onIgnore}>
+          <button className="icon-button" type="button" title={readonly ? "Readonly LAN view" : "Ignore"} disabled={readonly} onClick={onIgnore}>
             <EyeOff size={15} />
           </button>
           {isHidden(task) ? (
-            <button className="action-button" type="button" title="Restore" onClick={onRestore}>
+            <button className="action-button" type="button" title={readonly ? "Readonly LAN view" : "Restore"} disabled={readonly} onClick={onRestore}>
               <Eye size={15} />
               <span>Restore</span>
             </button>
@@ -1614,7 +1829,7 @@ function TaskDetail({
             aria-label="Manual binding pane"
             value={paneID}
             onChange={(event) => setPaneID(event.target.value)}
-            disabled={panes.length === 0}
+            disabled={readonly || panes.length === 0}
           >
             {panes.length === 0 ? (
               <option value="">No panes</option>
@@ -1629,8 +1844,8 @@ function TaskDetail({
           <button
             className="action-button"
             type="button"
-            title="Manually bind selected task to pane"
-            disabled={paneID === ""}
+            title={readonly ? "Readonly LAN view" : "Manually bind selected task to pane"}
+            disabled={readonly || paneID === ""}
             onClick={() => onAttach(Number(paneID))}
           >
             <PanelRightOpen size={15} />
@@ -1639,8 +1854,8 @@ function TaskDetail({
           <button
             className="icon-button"
             type="button"
-            title="Clear manual binding"
-            disabled={!manualBinding(task)}
+            title={readonly ? "Readonly LAN view" : "Clear manual binding"}
+            disabled={readonly || !manualBinding(task)}
             onClick={onDetach}
           >
             <RotateCcw size={15} />
@@ -1788,6 +2003,16 @@ function SettingsPanel({
         </div>
 
         <div className="settings-body">
+          <section className="settings-section">
+            <h3>identity</h3>
+            <div className="settings-grid identity">
+              <label>
+                <span>cockpit owner</span>
+                <input value={draft.cockpit_owner ?? ""} placeholder="owner name" onChange={(event) => update("cockpit_owner", event.target.value)} />
+              </label>
+            </div>
+          </section>
+
           <section className="settings-section">
             <h3>status</h3>
             <div className="settings-grid">

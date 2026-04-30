@@ -73,6 +73,33 @@ This section is updated while the prototype is being implemented.
 - Ambient Mode: MVP implemented. Toolbar ambient mode opens a monitor-style view with mission radar, counts, and active flight strips.
 - Command HUD: MVP implemented. `Cmd+K` is grouped into actions, missions, and sessions.
 - Launch Feedback: MVP implemented. Opening a pane gives the selected row/detail a short target-lock animation.
+- LAN Readonly Cockpit: MVP implemented. The desktop app can start a local web server that serves the same dashboard to the LAN, backed only by read endpoints; remote viewers cannot open panes, bind, archive, edit settings, or launch summary/debrief runs.
+
+### LAN Readonly Cockpit
+
+LAN Readonly Cockpit makes the flight deck visible from another machine on the same network.
+
+Goal:
+
+- Let teammates or another device inspect the current agent dashboard without giving them control over local sessions.
+
+Readonly contract:
+
+- The shared page can read snapshot, settings, trace, status logic, diff radar, flight recorder, and Done Inbox data.
+- The shared page cannot activate WezTerm, change bindings, archive or ignore tasks, review inbox items, edit settings, or start LLM summary/debrief work.
+- The server exposes a separate `/api/*` surface instead of the Wails desktop command surface.
+
+UX:
+
+- The desktop toolbar has a LAN share control.
+- After starting, Cockpit shows the reachable `http://<lan-ip>:<port>/` address.
+- Remote browsers display a READONLY badge and disabled controls for side-effecting actions.
+
+Acceptance criteria:
+
+- A LAN browser can load the dashboard without Wails.
+- Mutating buttons are disabled in the browser UI.
+- Mutating endpoints do not exist on the readonly server.
 
 ### 1. Flight Recorder
 

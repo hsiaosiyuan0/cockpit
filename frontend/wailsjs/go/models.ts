@@ -637,6 +637,7 @@ export namespace config {
 	    }
 	}
 	export class Settings {
+	    cockpit_owner?: string;
 	    codex_home: string;
 	    claude_home: string;
 	    codex_bin: string;
@@ -664,6 +665,7 @@ export namespace config {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cockpit_owner = source["cockpit_owner"];
 	        this.codex_home = source["codex_home"];
 	        this.claude_home = source["claude_home"];
 	        this.codex_bin = source["codex_bin"];
@@ -707,3 +709,23 @@ export namespace config {
 
 }
 
+export namespace main {
+
+	export class ShareServerInfo {
+	    url: string;
+	    listen_addr: string;
+	    readonly: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new ShareServerInfo(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.listen_addr = source["listen_addr"];
+	        this.readonly = source["readonly"];
+	    }
+	}
+
+}

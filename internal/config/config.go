@@ -15,6 +15,7 @@ type Config struct {
 	StateDir         string
 	SettingsPath     string
 	InternalRunDir   string
+	CockpitOwner     string
 	CodexBin         string
 	WeztermBin       string
 	RecentWindow     time.Duration
@@ -50,6 +51,7 @@ type AttentionRule struct {
 }
 
 type Settings struct {
+	CockpitOwner           string          `json:"cockpit_owner,omitempty"`
 	CodexHome              string          `json:"codex_home"`
 	ClaudeHome             string          `json:"claude_home"`
 	CodexBin               string          `json:"codex_bin"`
@@ -82,6 +84,7 @@ func Load() (Config, error) {
 		CodexHome:        envOr("CODEX_HOME", filepath.Join(home, ".codex")),
 		ClaudeHome:       envOr("CLAUDE_HOME", filepath.Join(home, ".claude")),
 		StateDir:         envOr("COCKPIT_STATE_DIR", filepath.Join(home, ".local", "state", "cockpit")),
+		CockpitOwner:     envOr("COCKPIT_OWNER", ""),
 		CodexBin:         envOr("COCKPIT_CODEX_BIN", "codex"),
 		WeztermBin:       envOr("COCKPIT_WEZTERM_BIN", "wezterm"),
 		RecentWindow:     durationEnv("COCKPIT_RECENT_WINDOW", 48*time.Hour),
@@ -111,6 +114,7 @@ func Load() (Config, error) {
 
 func (cfg Config) Settings() Settings {
 	return Settings{
+		CockpitOwner:           cfg.CockpitOwner,
 		CodexHome:              cfg.CodexHome,
 		ClaudeHome:             cfg.ClaudeHome,
 		CodexBin:               cfg.CodexBin,
@@ -157,6 +161,7 @@ func SaveSettings(path string, settings Settings) error {
 
 func ApplySettings(cfg Config, settings Settings) Config {
 	settings = normalizeSettings(settings, cfg.Settings())
+	cfg.CockpitOwner = settings.CockpitOwner
 	cfg.CodexHome = settings.CodexHome
 	cfg.ClaudeHome = settings.ClaudeHome
 	cfg.CodexBin = settings.CodexBin
