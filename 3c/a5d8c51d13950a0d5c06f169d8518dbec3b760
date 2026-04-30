@@ -1,0 +1,141 @@
+internal/notify/notify.go
+  7e6e02362e5fec10 1-186
+app.go
+  7e6e02362e5fec10 1-498
+frontend/src/vite-env.d.ts
+  7e6e02362e5fec10 1
+internal/summary/summarizer.go
+  7e6e02362e5fec10 1-308
+app_test.go
+  7e6e02362e5fec10 1-54
+design/cockpit-expandable-panels.html
+  7e6e02362e5fec10 1-1332
+frontend/src/mock.ts
+  7e6e02362e5fec10 1-391
+internal/tui/model.go
+  7e6e02362e5fec10 1-755
+internal/notify/notify_test.go
+  7e6e02362e5fec10 1-90
+product.md
+  7e6e02362e5fec10 1-538
+internal/discovery/claude_trace_test.go
+  7e6e02362e5fec10 1-41
+wails.json
+  7e6e02362e5fec10 1-12
+internal/app/store.go
+  7e6e02362e5fec10 1-295
+frontend/tsconfig.node.json
+  7e6e02362e5fec10 1-9
+frontend/wailsjs/go/main/App.d.ts
+  7e6e02362e5fec10 1-32
+internal/binder/binder.go
+  7e6e02362e5fec10 1-129
+internal/flight/flight.go
+  7e6e02362e5fec10 1-138
+go.mod
+  7e6e02362e5fec10 1-62
+frontend/vite.config.ts
+  7e6e02362e5fec10 1-6
+internal/discovery/json_helpers.go
+  7e6e02362e5fec10 1-107
+internal/wezterm/wezterm.go
+  7e6e02362e5fec10 1-88
+frontend/wailsjs/runtime/runtime.js
+  7e6e02362e5fec10 1-298
+internal/gitradar/gitradar.go
+  7e6e02362e5fec10 1-207
+internal/app/demo.go
+  7e6e02362e5fec10 1-284
+frontend/src/types.ts
+  7e6e02362e5fec10 1-275
+internal/app/types.go
+  7e6e02362e5fec10 1-324
+frontend/src/style.css
+  7e6e02362e5fec10 1-3338
+frontend/index.html
+  7e6e02362e5fec10 1-12
+main.go
+  7e6e02362e5fec10 1-40
+frontend/src/main.tsx
+  7e6e02362e5fec10 1-10
+internal/macosfocus/focus_other.go
+  7e6e02362e5fec10 1-7
+.gitignore
+  7e6e02362e5fec10 1-25
+build/darwin/Info.plist
+  7e6e02362e5fec10 1-63
+frontend/tsconfig.json
+  7e6e02362e5fec10 1-21
+design/cockpit-inspector-layout.html
+  7e6e02362e5fec10 1-1824
+internal/discovery/discovery.go
+  7e6e02362e5fec10 1-60
+internal/macosfocus/focus_darwin.go
+  7e6e02362e5fec10 1-38
+internal/state/status_regression_test.go
+  7e6e02362e5fec10 1-109
+cmd/cockpit/main.go
+  7e6e02362e5fec10 1-421
+internal/discovery/codex_trace_test.go
+  7e6e02362e5fec10 1-96
+internal/discovery/trace.go
+  7e6e02362e5fec10 1-324
+internal/config/config.go
+  7e6e02362e5fec10 1-351
+internal/tui/demo.go
+  7e6e02362e5fec10 1-16
+frontend/wailsjs/runtime/package.json
+  7e6e02362e5fec10 1-24
+internal/redact/redact.go
+  7e6e02362e5fec10 1-15
+internal/discovery/claude.go
+  7e6e02362e5fec10 1-202
+internal/discovery/internal.go
+  7e6e02362e5fec10 1-23
+frontend/src/App.tsx
+  7e6e02362e5fec10 1-2769
+internal/state/state_test.go
+  7e6e02362e5fec10 1-364
+internal/discovery/codex.go
+  7e6e02362e5fec10 1-275
+internal/engine/snapshot.go
+  7e6e02362e5fec10 1-220
+internal/process/process.go
+  7e6e02362e5fec10 1-55
+frontend/wailsjs/runtime/runtime.d.ts
+  7e6e02362e5fec10 1-330
+frontend/wailsjs/go/models.ts
+  7e6e02362e5fec10 1-709
+frontend/package.json
+  7e6e02362e5fec10 1-23
+frontend/src/api.ts
+  7e6e02362e5fec10 1-197
+README.md
+  7e6e02362e5fec10 1-121
+frontend/wailsjs/go/main/App.js
+  7e6e02362e5fec10 1-59
+design/cockpit-dashboard.html
+  7e6e02362e5fec10 1-500
+internal/state/state.go
+  7e6e02362e5fec10 1-651
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "3ca5d8c51d13950a0d5c06f169d8518dbec3b760",
+  "prompts": {
+    "7e6e02362e5fec10": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ddc4c-620e-77c0-83ef-46b3f0c7688b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "hsiaosiyuan0",
+      "messages": [],
+      "total_additions": 19752,
+      "total_deletions": 0,
+      "accepted_lines": 19752,
+      "overriden_lines": 0
+    }
+  }
+}
