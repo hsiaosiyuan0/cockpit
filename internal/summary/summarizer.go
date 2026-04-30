@@ -216,7 +216,7 @@ func DebriefInputHash(task app.Task) string {
 func buildPrompt(task app.Task, runID string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "COCKPIT_INTERNAL_RUN_ID=%s\n", runID)
-	fmt.Fprintf(&b, "You summarize an observed Claude/Codex CLI task for a terminal cockpit UI.\n")
+	fmt.Fprintf(&b, "You summarize an observed Claude/Codex CLI task for a local cockpit dashboard.\n")
 	fmt.Fprintf(&b, "Do not run tools. Return JSON only, with keys one_line, attention, attention_reason, progress, next_likely_step, confidence.\n")
 	fmt.Fprintf(&b, "Keep one_line under 120 Chinese characters or 180 English characters. Avoid mentioning this internal summarization run.\n\n")
 	fmt.Fprintf(&b, "Task:\nagent=%s\nsession_id=%s\ncwd=%s\nstatus=%s\nattention_reason=%s\n\n", task.Session.Agent, task.Session.ID, task.Session.CWD, task.Status, task.AttentionReason)

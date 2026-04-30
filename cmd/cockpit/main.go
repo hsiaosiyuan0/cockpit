@@ -14,13 +14,10 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-
 	"cockpit/internal/app"
 	"cockpit/internal/config"
 	"cockpit/internal/engine"
 	"cockpit/internal/summary"
-	"cockpit/internal/tui"
 	"cockpit/internal/wezterm"
 )
 
@@ -37,12 +34,11 @@ func run(args []string) error {
 		return err
 	}
 	if len(args) == 0 {
-		return runTUI(cfg)
+		printUsage()
+		return nil
 	}
 
 	switch args[0] {
-	case "demo":
-		return runDemo(args[1:])
 	case "doctor":
 		return runDoctor(cfg)
 	case "inspect":
@@ -65,8 +61,7 @@ func printUsage() {
 	fmt.Print(`cockpit watches Claude Code and Codex CLI sessions.
 
 Usage:
-  cockpit                 open the TUI
-  cockpit demo            open the TUI with mock dashboard data
+  cockpit                 show this help
   cockpit inspect         print discovered tasks and bindings
   cockpit inspect --json  print JSON
   cockpit doctor          check local observability dependencies
@@ -74,35 +69,6 @@ Usage:
   cockpit attach [ID]     bind a task/session to the current WezTerm pane
   cockpit open PANE_ID    activate a WezTerm pane
 `)
-}
-
-func runTUI(cfg config.Config) error {
-	ctx := context.Background()
-	store, err := app.NewStore(cfg)
-	if err != nil {
-		return err
-	}
-	model := tui.NewModel(ctx, cfg, store)
-	_, err = tea.NewProgram(model, tea.WithAltScreen()).Run()
-	return err
-}
-
-func runDemo(args []string) error {
-	fs := flag.NewFlagSet("demo", flag.ContinueOnError)
-	printOnly := fs.Bool("print", false, "print one static demo frame")
-	width := fs.Int("width", 140, "static frame width for --print")
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
-		}
-		return err
-	}
-	if *printOnly {
-		fmt.Println(tui.DemoView(*width))
-		return nil
-	}
-	_, err := tea.NewProgram(tui.NewDemoModel(), tea.WithAltScreen()).Run()
-	return err
 }
 
 func runInspect(cfg config.Config, args []string) error {

@@ -94,8 +94,8 @@ func DemoTasksAt(now time.Time) []Task {
 				Title:       "Cockpit desktop shell",
 				LastEventAt: now.Add(-2 * time.Minute),
 				Events: []Event{
-					{At: now.Add(-4 * time.Minute), Type: EventUser, Text: "use mock data to restore the cockpit TUI style"},
-					{At: now.Add(-3 * time.Minute), Type: EventTool, Text: "patched internal/tui/model.go"},
+					{At: now.Add(-4 * time.Minute), Type: EventUser, Text: "use mock data to validate the cockpit dashboard"},
+					{At: now.Add(-3 * time.Minute), Type: EventTool, Text: "patched dashboard frontend and status model"},
 					{At: now.Add(-2 * time.Minute), Type: EventAssistant, Text: "desktop shell is updated and waiting for the next instruction"},
 				},
 				Trace: []TraceSpan{

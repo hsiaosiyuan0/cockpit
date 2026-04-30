@@ -51,7 +51,7 @@ The current app already covers the first useful loop:
 
 ## Implementation Progress
 
-This section is updated while the prototype is being implemented.
+This section tracks the v1 implementation surface.
 
 - Flight Recorder: MVP implemented. Snapshot task model includes derived `flight` events from logs, trace spans, status transitions, and git radar; frontend selected task panel shows the recent flight recorder.
 - Done Inbox: MVP implemented. Persistent `done.json` store, snapshot `done_inbox`, toolbar badge, inbox dialog, review, and archive actions are wired.
@@ -74,6 +74,8 @@ This section is updated while the prototype is being implemented.
 - Command HUD: MVP implemented. `Cmd+K` is grouped into actions, missions, and sessions.
 - Launch Feedback: MVP implemented. Opening a pane gives the selected row/detail a short target-lock animation.
 - LAN Readonly Cockpit: MVP implemented. The desktop app can start a local web server that serves the same dashboard to the LAN, backed only by read endpoints; remote viewers cannot open panes, bind, archive, edit settings, or launch summary/debrief runs.
+- Legacy terminal UI removal: completed. The Wails desktop app and readonly web dashboard are the product surfaces; the Go CLI remains for inspect, doctor, attach, open, and summarize maintenance commands.
+- Terminal Adapter Roadmap: v1 uses WezTerm for pane metadata and focus; Ghostty, iTerm2, and other terminal emulators are planned once their pane/process adapters are added.
 
 ### LAN Readonly Cockpit
 
