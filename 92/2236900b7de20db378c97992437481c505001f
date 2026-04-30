@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "922236900b7de20db378c97992437481c505001f",
+  "prompts": {
+    "7e6e02362e5fec10": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ddc4c-620e-77c0-83ef-46b3f0c7688b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "hsiaosiyuan0",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 3,
+      "accepted_lines": 220,
+      "overriden_lines": 1
+    }
+  }
+}
