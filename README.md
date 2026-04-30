@@ -31,6 +31,8 @@ This is still a prototype, but the main loop is already there. The desktop app i
 
 The UI is intentionally cockpit-like: mission board, radar, master caution, diff radar, trace, flight recorder, and status logic. The goal is fast situational awareness, not another wall of logs.
 
+![Cockpit dashboard with mock agent sessions](docs/cockpit-dashboard.png)
+
 ## Requirements
 
 - Go
