@@ -81,8 +81,18 @@ GitHub Actions builds the app without a self-hosted runner.
 - Pull requests run frontend and Go checks on Ubuntu.
 - Pushes to `main`, version tags, and manual workflow runs build the real macOS `darwin/arm64` app on GitHub's hosted `macos-15` runner.
 - Packaged builds are uploaded as `cockpit-<ref>-<sha>-darwin-arm64.zip` workflow artifacts.
+- Pushing a `v*` tag also creates a GitHub Release and attaches the macOS zip plus `SHA256SUMS`.
 
 Open the repository's **Actions** tab, choose the latest **Build** run, and download the `cockpit-darwin-arm64-*` artifact.
+
+To publish a release:
+
+```sh
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
+```
+
+After the workflow finishes, the packaged app will be available on the repository's **Releases** page.
 
 ## CLI
 
