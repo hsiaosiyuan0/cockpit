@@ -1,0 +1,197 @@
+import { mockSnapshot } from "./mock";
+import type { Settings, Snapshot, Task } from "./types";
+
+const api = () => window.go?.main?.App;
+
+export const hasNativeAPI = () => Boolean(api());
+
+export const defaultSettings: Settings = {
+  codex_home: "~/.codex",
+  claude_home: "~/.claude",
+  codex_bin: "codex",
+  wezterm_bin: "wezterm",
+  recent_window_hours: 48,
+  idle_after_seconds: 600,
+  stuck_after_seconds: 1200,
+  summary_interval_seconds: 60,
+  max_sessions: 40,
+  show_unbound: true,
+  enable_llm_summary: true,
+  binding_mode: "auto",
+  notify_attention: true,
+  notify_completed: true,
+  notify_stuck: true,
+  notification_mode: "normal",
+  quiet_hours_enabled: false,
+  quiet_hours_start: "22:00",
+  quiet_hours_end: "08:00",
+  attention_rules: [
+    { id: "permission_denied", name: "Permission denied", enabled: true, pattern: "permission denied|requires approval|operation not permitted", severity: "blocked", message: "permission or approval needed" },
+    { id: "auth_required", name: "Auth required", enabled: true, pattern: "authentication failed|unauthorized|forbidden|login required", severity: "blocked", message: "authentication required" },
+    { id: "merge_conflict", name: "Merge conflict", enabled: true, pattern: "merge conflict|<<<<<<<|conflict", severity: "blocked", message: "merge conflict detected" },
+    { id: "tests_failed", name: "Tests failed", enabled: true, pattern: "test failed|tests failed|failing test|1 failed|failed tests", severity: "attention", message: "tests failed" },
+    { id: "build_failed", name: "Build failed", enabled: true, pattern: "build failed|compilation failed|compile error", severity: "attention", message: "build failed" },
+    { id: "runtime_error", name: "Runtime error", enabled: true, pattern: "error:|exception|traceback|panic:", severity: "attention", message: "error detected" },
+    { id: "tool_blocked", name: "Tool blocked", enabled: true, pattern: "tool_use_error|blocked:", severity: "blocked", message: "tool blocked" },
+  ],
+};
+
+export async function getSnapshot(useDemo: boolean): Promise<Snapshot> {
+  const native = api();
+  if (!native) {
+    return mockSnapshot();
+  }
+  if (useDemo) {
+    return native.GetDemoSnapshot();
+  }
+  return native.GetSnapshot();
+}
+
+export async function getSettings(): Promise<Settings> {
+  const native = api();
+  if (!native) {
+    return defaultSettings;
+  }
+  return native.GetSettings();
+}
+
+export async function saveSettings(settings: Settings): Promise<Settings> {
+  const native = api();
+  if (!native) {
+    return settings;
+  }
+  return native.SaveSettings(settings);
+}
+
+export async function openPane(paneID: number): Promise<void> {
+  const native = api();
+  if (!native) {
+    return;
+  }
+  await native.OpenPane(paneID);
+}
+
+export async function archiveTask(taskID: string): Promise<Snapshot> {
+  const native = api();
+  if (!native) {
+    const snap = mockSnapshot();
+    snap.tasks = snap.tasks.map((task) => (task.id === taskID ? { ...task, archived: true } : task));
+    return snap;
+  }
+  return native.ArchiveTask(taskID);
+}
+
+export async function ignoreTask(taskID: string): Promise<Snapshot> {
+  const native = api();
+  if (!native) {
+    const snap = mockSnapshot();
+    snap.tasks = snap.tasks.map((task) => (task.id === taskID ? { ...task, ignored: true } : task));
+    return snap;
+  }
+  return native.IgnoreTask(taskID);
+}
+
+export async function restoreTask(taskID: string): Promise<Snapshot> {
+  const native = api();
+  if (!native) {
+    const snap = mockSnapshot();
+    snap.tasks = snap.tasks.map((task) => (task.id === taskID ? { ...task, archived: false, ignored: false } : task));
+    return snap;
+  }
+  return native.RestoreTask(taskID);
+}
+
+export async function attachTask(taskID: string, paneID: number): Promise<Snapshot> {
+  const native = api();
+  if (!native) {
+    const snap = mockSnapshot();
+    const pane = snap.panes.find((candidate) => candidate.pane_id === paneID);
+    snap.tasks = snap.tasks.map((task) =>
+      task.id === taskID
+        ? {
+            ...task,
+            binding: {
+              pane,
+              confidence: pane ? 999 : 0,
+              reasons: pane ? ["manual attach"] : [],
+            },
+          }
+        : task,
+    );
+    return snap;
+  }
+  return native.AttachTask(taskID, paneID);
+}
+
+export async function detachTask(taskID: string): Promise<Snapshot> {
+  const native = api();
+  if (!native) {
+    const snap = mockSnapshot();
+    snap.tasks = snap.tasks.map((task) =>
+      task.id === taskID
+        ? {
+            ...task,
+            binding: {
+              confidence: 0,
+              reasons: [],
+            },
+          }
+        : task,
+    );
+    return snap;
+  }
+  return native.DetachTask(taskID);
+}
+
+export async function refreshSummary(taskID: string): Promise<Task> {
+  const native = api();
+  if (!native) {
+    const task = mockSnapshot().tasks.find((candidate) => candidate.id === taskID);
+    if (!task) {
+      throw new Error(`task ${taskID} not found`);
+    }
+    return { ...task, summary: `${task.summary} (refreshed)` };
+  }
+  return native.RefreshSummary(taskID);
+}
+
+export async function generateDebrief(taskID: string): Promise<Task> {
+  const native = api();
+  if (!native) {
+    const task = mockSnapshot().tasks.find((candidate) => candidate.id === taskID);
+    if (!task) {
+      throw new Error(`task ${taskID} not found`);
+    }
+    return {
+      ...task,
+      debrief: {
+        task_id: task.id,
+        session_id: task.session.id,
+        generated_at: new Date().toISOString(),
+        input_hash: "mock",
+        text: "## Completed\nMock debrief generated from browser data.\n\n## Current State\nTask is ready for review.\n\n## Changed Files\nSee Diff Radar.\n\n## Tests\nNo native test evidence in browser mode.\n\n## Risks\nMock data only.\n\n## Next Action\nOpen the bound pane.",
+      },
+    };
+  }
+  return native.GenerateDebrief(taskID);
+}
+
+export async function reviewDoneItem(itemID: string): Promise<Snapshot> {
+  const native = api();
+  if (!native) {
+    const snap = mockSnapshot();
+    snap.done_inbox = (snap.done_inbox ?? []).map((item) => (item.id === itemID ? { ...item, reviewed: true } : item));
+    return snap;
+  }
+  return native.ReviewDoneItem(itemID);
+}
+
+export async function archiveDoneItem(itemID: string): Promise<Snapshot> {
+  const native = api();
+  if (!native) {
+    const snap = mockSnapshot();
+    snap.done_inbox = (snap.done_inbox ?? []).filter((item) => item.id !== itemID);
+    return snap;
+  }
+  return native.ArchiveDoneItem(itemID);
+}

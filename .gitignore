@@ -1,0 +1,25 @@
+.DS_Store
+
+# Local binaries and packaged apps
+/cockpit
+/build/bin/
+*.app
+
+# Frontend dependencies and generated bundles
+/frontend/node_modules/
+/frontend/dist/
+/frontend/package.json.md5
+
+# Logs, env files, and local runtime state
+*.log
+.env
+.env.*
+/.local/
+
+# Test and coverage output
+coverage/
+*.out
+
+# Editor noise
+.idea/
+.vscode/

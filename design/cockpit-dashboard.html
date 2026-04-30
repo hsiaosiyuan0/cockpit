@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cockpit TUI Style Mock</title>
+  <style>
+    :root {
+      --bg: #101113;
+      --panel: #17191d;
+      --panel-2: #1d2025;
+      --line: #32363e;
+      --line-strong: #545b66;
+      --text: #e8e3d8;
+      --muted: #9ba0a6;
+      --dim: #6e737b;
+      --green: #7fc97f;
+      --cyan: #60c2ca;
+      --amber: #e0b45c;
+      --red: #e06c75;
+      --violet: #b48ead;
+      --shadow: rgba(0, 0, 0, 0.35);
+      color-scheme: dark;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255,255,255,0.018) 1px, transparent 1px),
+        var(--bg);
+      background-size: 48px 48px;
+      color: var(--text);
+      padding: 24px;
+    }
+
+    .shell {
+      max-width: 1280px;
+      min-height: calc(100vh - 48px);
+      margin: 0 auto;
+      border: 1px solid var(--line-strong);
+      background: rgba(16, 17, 19, 0.92);
+      box-shadow: 0 24px 80px var(--shadow);
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 20px;
+      align-items: center;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      background: #14161a;
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0;
+      line-height: 1;
+      font-weight: 800;
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .clock {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .metric {
+      background: var(--panel);
+      padding: 12px 14px;
+      min-height: 68px;
+    }
+
+    .metric .label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .metric .value {
+      margin-top: 6px;
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .metric.attn .value { color: var(--red); }
+    .metric.wait .value { color: var(--amber); }
+    .metric.work .value { color: var(--green); }
+    .metric.idle .value { color: var(--muted); }
+    .metric.bound .value { color: var(--cyan); }
+    .metric.hidden .value { color: var(--violet); }
+
+    .main {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(360px, 0.85fr);
+      min-height: 0;
+    }
+
+    .board {
+      border-right: 1px solid var(--line);
+      min-width: 0;
+      background: var(--panel);
+    }
+
+    .board-head,
+    .detail-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 42px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    .board-head strong,
+    .detail-head strong {
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .board-head span,
+    .detail-head span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .lane {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .lane-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px 8px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      background: #15171b;
+    }
+
+    .lane-title::after {
+      content: "";
+      height: 1px;
+      flex: 1;
+      background: var(--line);
+    }
+
+    .task {
+      display: grid;
+      grid-template-columns: 56px 70px minmax(130px, 190px) 86px 92px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+      padding: 10px 14px;
+      min-height: 48px;
+      border-top: 1px solid rgba(255,255,255,0.035);
+    }
+
+    .task.selected {
+      background: #222832;
+      box-shadow: inset 3px 0 0 var(--cyan);
+    }
+
+    .task .status,
+    .task .agent,
+    .task .project,
+    .task .age,
+    .task .link {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .status {
+      font-weight: 800;
+      font-size: 11px;
+    }
+
+    .status.attn { color: var(--red); }
+    .status.wait { color: var(--amber); }
+    .status.work { color: var(--green); }
+    .status.idle { color: var(--muted); }
+    .status.link { color: var(--cyan); }
+
+    .agent {
+      color: var(--text);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .project {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .age,
+    .link,
+    .summary {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .link.bound { color: var(--cyan); }
+    .link.manual { color: var(--violet); }
+
+    .summary {
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .detail {
+      min-width: 0;
+      background: #131519;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+
+    .selected-card {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .selected-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .selected-title h2 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .callout {
+      border: 1px solid rgba(224, 108, 117, 0.45);
+      background: rgba(224, 108, 117, 0.08);
+      padding: 10px;
+      margin-bottom: 12px;
+      color: #f0c0c4;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr);
+      gap: 7px 10px;
+      font-size: 12px;
+    }
+
+    .kv .k {
+      color: var(--dim);
+      text-transform: uppercase;
+    }
+
+    .kv .v {
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .timeline {
+      padding: 12px 14px;
+      overflow: hidden;
+    }
+
+    .event {
+      display: grid;
+      grid-template-columns: 58px 74px minmax(0, 1fr);
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.045);
+      font-size: 12px;
+    }
+
+    .event time,
+    .event .type {
+      color: var(--dim);
+      white-space: nowrap;
+    }
+
+    .event .text {
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 14px;
+      border-top: 1px solid var(--line);
+      background: #14161a;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .keys {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    @media (max-width: 980px) {
+      body {
+        padding: 12px;
+      }
+
+      .shell {
+        min-height: calc(100vh - 24px);
+      }
+
+      .metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .main {
+        grid-template-columns: 1fr;
+      }
+
+      .board {
+        border-right: 0;
+      }
+
+      .detail {
+        border-top: 1px solid var(--line);
+      }
+
+      .task {
+        grid-template-columns: 50px 58px minmax(100px, 1fr) 76px;
+      }
+
+      .task .link,
+      .task .summary {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <h1>COCKPIT</h1>
+        <span>agent flight deck</span>
+      </div>
+      <div class="clock">13:42:16<br>5 visible / 9 hidden</div>
+    </header>
+
+    <section class="metrics" aria-label="Session metrics">
+      <div class="metric attn"><div class="label">attention</div><div class="value">01</div></div>
+      <div class="metric wait"><div class="label">waiting</div><div class="value">00</div></div>
+      <div class="metric work"><div class="label">working</div><div class="value">02</div></div>
+      <div class="metric idle"><div class="label">idle</div><div class="value">01</div></div>
+      <div class="metric bound"><div class="label">bound</div><div class="value">03</div></div>
+      <div class="metric hidden"><div class="label">hidden</div><div class="value">09</div></div>
+    </section>
+
+    <section class="main">
+      <div class="board">
+        <div class="board-head">
+          <strong>mission board</strong>
+          <span>local wezterm / claude / codex</span>
+        </div>
+
+        <div class="lane">
+          <div class="lane-title">needs attention / 1</div>
+          <div class="task selected">
+            <div class="status attn">ATTN</div>
+            <div class="agent">codex</div>
+            <div class="project">frontend</div>
+            <div class="age">2m ago</div>
+            <div class="link bound">pane:7</div>
+            <div class="summary">tests failed after changing route guards; agent is waiting for direction</div>
+          </div>
+        </div>
+
+        <div class="lane">
+          <div class="lane-title">working / 2</div>
+          <div class="task">
+            <div class="status work">WORK</div>
+            <div class="agent">codex</div>
+            <div class="project">cockpit</div>
+            <div class="age">18s ago</div>
+            <div class="link manual">manual:2</div>
+            <div class="summary">redesigning the TUI into a cockpit dashboard and validating layout density</div>
+          </div>
+          <div class="task">
+            <div class="status work">WORK</div>
+            <div class="agent">claude</div>
+            <div class="project">music-know-vault</div>
+            <div class="age">1m ago</div>
+            <div class="link bound">pane:0</div>
+            <div class="summary">checking Flyway startup behavior after excluding a legacy c3p0 dependency</div>
+          </div>
+        </div>
+
+        <div class="lane">
+          <div class="lane-title">idle / 1</div>
+          <div class="task">
+            <div class="status idle">IDLE</div>
+            <div class="agent">claude</div>
+            <div class="project">kb-workspace</div>
+            <div class="age">14m ago</div>
+            <div class="link bound">pane:4</div>
+            <div class="summary">last activity was reading deployment notes; no new output since</div>
+          </div>
+        </div>
+
+        <div class="lane">
+          <div class="lane-title">unbound / 1</div>
+          <div class="task">
+            <div class="status link">LINK</div>
+            <div class="agent">codex</div>
+            <div class="project">my-buddies</div>
+            <div class="age">42m ago</div>
+            <div class="link">unbound</div>
+            <div class="summary">session found in logs, but no reliable pane match</div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="detail">
+        <div class="detail-head">
+          <strong>selected task</strong>
+          <span>pane:7</span>
+        </div>
+        <div class="selected-card">
+          <div class="selected-title">
+            <h2>frontend</h2>
+            <span class="status attn">ATTN</span>
+          </div>
+          <div class="callout">Tests failed after route guard changes. The agent is waiting for a decision before changing implementation direction.</div>
+          <div class="kv">
+            <div class="k">agent</div><div class="v">codex</div>
+            <div class="k">session</div><div class="v">019de0b2-71d0...</div>
+            <div class="k">binding</div><div class="v">pid tty match, cwd match</div>
+            <div class="k">cwd</div><div class="v">/Users/hsy/dev/frontend</div>
+            <div class="k">summary</div><div class="v">route guard refactor caused a focused test failure</div>
+          </div>
+        </div>
+        <div class="timeline">
+          <div class="event"><time>13:37</time><div class="type">tool</div><div class="text">edited src/router/guards.ts</div></div>
+          <div class="event"><time>13:38</time><div class="type">tool</div><div class="text">ran pnpm test router.guard.spec.ts</div></div>
+          <div class="event"><time>13:39</time><div class="type">result</div><div class="text">1 failed, 12 passed</div></div>
+          <div class="event"><time>13:40</time><div class="type">assistant</div><div class="text">asking whether to preserve legacy redirect behavior</div></div>
+        </div>
+      </aside>
+    </section>
+
+    <footer class="footer">
+      <div>refreshed 13:42:16</div>
+      <div class="keys">Enter open | s summary | l detail | a archive | i ignore | q quit</div>
+    </footer>
+  </main>
+</body>
+</html>

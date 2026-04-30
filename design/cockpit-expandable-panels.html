@@ -1,0 +1,1332 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cockpit Expandable Panels Prototype</title>
+  <style>
+    :root {
+      --bg: #101113;
+      --panel: #17191d;
+      --panel-2: #1d2025;
+      --panel-3: #131519;
+      --line: #32363e;
+      --line-strong: #545b66;
+      --text: #e8e3d8;
+      --muted: #9ba0a6;
+      --dim: #6e737b;
+      --green: #7fc97f;
+      --cyan: #60c2ca;
+      --amber: #e0b45c;
+      --red: #e06c75;
+      --violet: #b48ead;
+      --shadow: rgba(0, 0, 0, 0.42);
+      color-scheme: dark;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    body {
+      background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+        var(--bg);
+      background-size: 48px 48px;
+      color: var(--text);
+      padding: 12px;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .shell {
+      width: min(1180px, 100%);
+      height: min(900px, calc(100vh - 24px));
+      min-height: 760px;
+      margin: 0 auto;
+      border: 1px solid var(--line-strong);
+      background: rgba(16, 17, 19, 0.94);
+      box-shadow: 0 24px 80px var(--shadow);
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: center;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #14161a;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border: 1px solid rgba(96, 194, 202, 0.55);
+      color: var(--cyan);
+      background: rgba(96, 194, 202, 0.08);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .brand span,
+    .clock {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .clock {
+      text-align: right;
+      line-height: 1.4;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .metric {
+      min-height: 64px;
+      padding: 10px 12px;
+      background: var(--panel);
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      margin-top: 8px;
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .metric.attn .metric-value,
+    .status.attn {
+      color: var(--red);
+    }
+
+    .metric.wait .metric-value,
+    .status.wait {
+      color: var(--amber);
+    }
+
+    .metric.work .metric-value,
+    .status.work {
+      color: var(--green);
+    }
+
+    .metric.idle .metric-value,
+    .status.idle {
+      color: var(--muted);
+    }
+
+    .metric.bound .metric-value,
+    .status.link {
+      color: var(--cyan);
+    }
+
+    .metric.hidden .metric-value,
+    .status.done {
+      color: var(--violet);
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: minmax(520px, 0.54fr) minmax(500px, 0.46fr);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .board {
+      min-width: 0;
+      border-right: 1px solid var(--line);
+      background: var(--panel);
+      overflow: hidden;
+    }
+
+    .board-head,
+    .detail-head,
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 42px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    .board-head strong,
+    .detail-head strong,
+    .panel-head strong {
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .board-head span,
+    .detail-head span,
+    .panel-head span {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 11px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .lane {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .lane-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px 8px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1;
+      text-transform: uppercase;
+      background: #15171b;
+    }
+
+    .lane-title::after {
+      content: "";
+      height: 1px;
+      flex: 1;
+      background: var(--line);
+    }
+
+    .task {
+      display: grid;
+      grid-template-columns: 52px 64px minmax(108px, 164px) 70px 76px minmax(0, 1fr);
+      gap: 9px;
+      align-items: center;
+      min-height: 48px;
+      padding: 9px 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.035);
+    }
+
+    .task.selected {
+      background: #222832;
+      box-shadow: inset 3px 0 0 var(--cyan);
+    }
+
+    .status,
+    .agent,
+    .project,
+    .age,
+    .link,
+    .summary {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status {
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .agent {
+      color: var(--text);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .project {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .age,
+    .link,
+    .summary {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .link.bound {
+      color: var(--cyan);
+    }
+
+    .link.manual {
+      color: var(--violet);
+    }
+
+    .detail {
+      min-width: 0;
+      background: var(--panel-3);
+      display: grid;
+      grid-template-rows: auto auto minmax(142px, 0.52fr) auto minmax(0, 1fr);
+      overflow: hidden;
+    }
+
+    .selected-card {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .selected-title {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .selected-title h2 {
+      margin: 0;
+      max-width: 100%;
+      font-size: 16px;
+      line-height: 1.25;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .selected-title span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .callout {
+      margin-bottom: 10px;
+      padding: 8px 9px;
+      border: 1px solid rgba(224, 108, 117, 0.45);
+      background: rgba(224, 108, 117, 0.08);
+      color: #f0c0c4;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 82px minmax(0, 1fr);
+      gap: 5px 8px;
+      font-size: 12px;
+    }
+
+    .kv .k {
+      color: var(--dim);
+      text-transform: uppercase;
+    }
+
+    .kv .v {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--text);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .instrument-panel {
+      position: relative;
+      min-height: 0;
+      border-bottom: 1px solid var(--line);
+      background: #15171b;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      transform-origin: center;
+      transition:
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        background 160ms ease,
+        opacity 160ms ease;
+    }
+
+    .instrument-panel:hover {
+      border-color: rgba(96, 194, 202, 0.35);
+      box-shadow: inset 0 0 0 1px rgba(96, 194, 202, 0.08);
+    }
+
+    .panel-head {
+      min-height: 34px;
+      padding: 7px 12px;
+      border-bottom-color: rgba(255, 255, 255, 0.045);
+      background: #171a1f;
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .panel-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+
+    .icon-button {
+      width: 28px;
+      height: 28px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: #181b20;
+      cursor: pointer;
+      transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+    }
+
+    .icon-button:hover {
+      border-color: rgba(96, 194, 202, 0.72);
+      color: var(--cyan);
+      background: rgba(96, 194, 202, 0.08);
+    }
+
+    .icon-button svg {
+      width: 15px;
+      height: 15px;
+      stroke-width: 2;
+    }
+
+    .icon-restore {
+      display: none;
+    }
+
+    .panel-body {
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .trace-list {
+      padding: 4px 0;
+    }
+
+    .trace-row {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) 48px;
+      align-items: start;
+      gap: 8px;
+      min-height: 38px;
+      padding: 6px 10px 6px var(--indent, 10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.025);
+      font-size: 11px;
+    }
+
+    .trace-status {
+      display: inline-flex;
+      justify-content: center;
+      padding-top: 1px;
+    }
+
+    .trace-status.running {
+      color: var(--green);
+    }
+
+    .trace-status.ok {
+      color: var(--cyan);
+    }
+
+    .trace-status.fail {
+      color: var(--red);
+    }
+
+    .trace-main {
+      min-width: 0;
+    }
+
+    .trace-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .trace-kind {
+      flex: 0 0 auto;
+      min-width: 52px;
+      color: var(--dim);
+      font-size: 10px;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .trace-kind.tool {
+      color: var(--cyan);
+    }
+
+    .trace-kind.worker {
+      color: var(--green);
+    }
+
+    .trace-kind.reply {
+      color: var(--violet);
+    }
+
+    .trace-name,
+    .trace-duration {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .trace-name {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .trace-duration {
+      color: var(--muted);
+      text-align: right;
+      padding-top: 1px;
+    }
+
+    .trace-summary {
+      min-width: 0;
+      margin-top: 4px;
+      color: var(--muted);
+      line-height: 1.3;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow-wrap: anywhere;
+    }
+
+    .status-body {
+      padding: 9px 12px;
+    }
+
+    .explain-primary {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      gap: 10px;
+      margin-bottom: 7px;
+      padding: 8px 9px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.024);
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .explain-primary > span:last-child {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .explain-grid {
+      display: grid;
+      grid-template-columns: minmax(74px, 0.58fr) minmax(0, 1fr) minmax(0, 1fr);
+      align-items: stretch;
+      gap: 1px;
+      background: rgba(255, 255, 255, 0.055);
+      font-size: 12px;
+    }
+
+    .explain-grid > div {
+      min-width: 0;
+      display: grid;
+      gap: 4px;
+      min-height: 38px;
+      padding: 7px;
+      background: #15181d;
+    }
+
+    .explain-key {
+      color: var(--dim);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .explain-grid strong {
+      min-width: 0;
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 650;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .evidence-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 7px;
+      padding-top: 7px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+      overflow: hidden;
+    }
+
+    .evidence-list span {
+      min-width: 0;
+      max-width: 100%;
+      flex: 0 1 auto;
+      padding: 3px 6px;
+      border: 1px solid rgba(255, 255, 255, 0.045);
+      background: rgba(0, 0, 0, 0.14);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .timeline {
+      padding: 10px 12px;
+      overflow: auto;
+    }
+
+    .event {
+      display: grid;
+      grid-template-columns: 74px 78px minmax(0, 1fr);
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+      font-size: 12px;
+    }
+
+    .event time,
+    .event .type {
+      color: var(--dim);
+      white-space: nowrap;
+    }
+
+    .event .text {
+      min-width: 0;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 14px;
+      border-top: 1px solid var(--line);
+      background: #14161a;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .footer span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .expanded-only {
+      display: none;
+    }
+
+    .overlay-scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: rgba(6, 7, 9, 0.66);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease;
+    }
+
+    body.has-expanded .overlay-scrim {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .instrument-panel.is-expanded {
+      position: fixed;
+      inset: 12px;
+      z-index: 40;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      border: 1px solid rgba(96, 194, 202, 0.62);
+      background: rgba(17, 19, 23, 0.98);
+      box-shadow:
+        0 30px 90px rgba(0, 0, 0, 0.62),
+        inset 0 0 0 1px rgba(96, 194, 202, 0.08);
+      animation: expandPanel 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .instrument-panel.is-closing {
+      animation: collapsePanel 150ms ease forwards;
+    }
+
+    .instrument-panel.is-expanded .panel-head {
+      min-height: 48px;
+      padding: 12px 16px;
+      background: #171a1f;
+    }
+
+    .instrument-panel.is-expanded .panel-title strong {
+      font-size: 14px;
+    }
+
+    .instrument-panel.is-expanded .panel-title span {
+      font-size: 12px;
+    }
+
+    .instrument-panel.is-expanded .icon-expand {
+      display: none;
+    }
+
+    .instrument-panel.is-expanded .icon-restore {
+      display: block;
+    }
+
+    .instrument-panel.is-expanded .expanded-only {
+      display: block;
+    }
+
+    .instrument-panel.is-expanded .trace-row.expanded-only {
+      display: grid;
+    }
+
+    .instrument-panel.is-expanded .panel-body {
+      overflow: hidden;
+    }
+
+    .instrument-panel.is-expanded.trace-panel .panel-body {
+      display: grid;
+      grid-template-columns: minmax(420px, 0.62fr) minmax(320px, 0.38fr);
+      min-height: 0;
+    }
+
+    .instrument-panel.is-expanded .trace-list {
+      overflow: auto;
+      padding: 8px 0;
+    }
+
+    .instrument-panel.is-expanded .trace-row {
+      min-height: 44px;
+      grid-template-columns: 22px minmax(0, 1fr) 70px;
+      padding-top: 8px;
+      padding-bottom: 8px;
+      font-size: 12px;
+    }
+
+    .instrument-panel.is-expanded .trace-summary {
+      -webkit-line-clamp: 4;
+    }
+
+    .trace-inspector,
+    .logic-inspector {
+      min-height: 0;
+      border-left: 1px solid var(--line);
+      background: #111318;
+      overflow: auto;
+    }
+
+    .inspector-section {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+    }
+
+    .inspector-section h3 {
+      margin: 0 0 10px;
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .inspector-section p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .output-block {
+      margin: 0;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(0, 0, 0, 0.18);
+      color: #cfd5d2;
+      font-size: 11px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+
+    .instrument-panel.is-expanded.status-panel .panel-body {
+      display: grid;
+      grid-template-columns: minmax(380px, 0.48fr) minmax(420px, 0.52fr);
+      min-height: 0;
+    }
+
+    .instrument-panel.is-expanded.status-panel .status-body {
+      overflow: auto;
+      padding: 16px;
+    }
+
+    .instrument-panel.is-expanded .explain-primary {
+      padding: 12px;
+      font-size: 13px;
+    }
+
+    .instrument-panel.is-expanded .explain-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .rule-stack {
+      display: grid;
+      gap: 8px;
+    }
+
+    .rule {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.024);
+      font-size: 12px;
+    }
+
+    .rule .step {
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border: 1px solid var(--line);
+      color: var(--dim);
+      background: rgba(0, 0, 0, 0.14);
+      font-size: 10px;
+    }
+
+    .rule.active {
+      border-color: rgba(127, 201, 127, 0.42);
+      background: rgba(127, 201, 127, 0.07);
+    }
+
+    .rule.active .step {
+      border-color: rgba(127, 201, 127, 0.62);
+      color: var(--green);
+    }
+
+    .rule strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    .rule span {
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    @keyframes expandPanel {
+      from {
+        opacity: 0.72;
+        transform: translateY(8px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes collapsePanel {
+      from {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      to {
+        opacity: 0;
+        transform: translateY(8px) scale(0.985);
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .shell {
+        width: 100%;
+      }
+
+      .main {
+        grid-template-columns: minmax(500px, 0.52fr) minmax(480px, 0.48fr);
+      }
+
+      .task {
+        grid-template-columns: 52px 60px minmax(100px, 1fr) 70px;
+      }
+
+      .task .link,
+      .task .summary {
+        display: none;
+      }
+    }
+
+    @media (max-width: 860px) {
+      body {
+        overflow: auto;
+      }
+
+      .shell {
+        min-height: 760px;
+        height: auto;
+      }
+
+      .metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .main {
+        grid-template-columns: 1fr;
+      }
+
+      .board {
+        border-right: 0;
+      }
+
+      .instrument-panel.is-expanded.trace-panel .panel-body,
+      .instrument-panel.is-expanded.status-panel .panel-body {
+        grid-template-columns: 1fr;
+      }
+
+      .trace-inspector,
+      .logic-inspector {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor">
+            <path d="M12 14l4-4"></path>
+            <path d="M4 14a8 8 0 1 1 16 0"></path>
+            <path d="M4 14h16"></path>
+          </svg>
+        </div>
+        <div>
+          <h1>COCKPIT</h1>
+          <span>agent flight deck</span>
+        </div>
+      </div>
+      <div class="clock">16:48:12<br>5 visible / 9 hidden</div>
+    </header>
+
+    <section class="metrics" aria-label="Session metrics">
+      <div class="metric attn"><div class="metric-label">attention</div><div class="metric-value">01</div></div>
+      <div class="metric wait"><div class="metric-label">waiting</div><div class="metric-value">00</div></div>
+      <div class="metric work"><div class="metric-label">working</div><div class="metric-value">01</div></div>
+      <div class="metric idle"><div class="metric-label">idle</div><div class="metric-value">02</div></div>
+      <div class="metric bound"><div class="metric-label">bound</div><div class="metric-value">04</div></div>
+      <div class="metric hidden"><div class="metric-label">hidden</div><div class="metric-value">09</div></div>
+    </section>
+
+    <section class="main">
+      <div class="board">
+        <div class="board-head">
+          <strong>mission board</strong>
+          <span>local wezterm / claude / codex</span>
+        </div>
+
+        <div class="lane">
+          <div class="lane-title">needs attention / 1</div>
+          <div class="task selected">
+            <div class="status attn">ATTN</div>
+            <div class="agent">codex</div>
+            <div class="project">frontend</div>
+            <div class="age">2m ago</div>
+            <div class="link bound">pane:7</div>
+            <div class="summary">tests failed after changing route guards; agent is waiting for direction</div>
+          </div>
+        </div>
+
+        <div class="lane">
+          <div class="lane-title">working / 1</div>
+          <div class="task">
+            <div class="status work">WORK</div>
+            <div class="agent">codex</div>
+            <div class="project">cockpit</div>
+            <div class="age">18s ago</div>
+            <div class="link manual">manual:2</div>
+            <div class="summary">running a focused build after status logic changes</div>
+          </div>
+        </div>
+
+        <div class="lane">
+          <div class="lane-title">idle / 2</div>
+          <div class="task">
+            <div class="status idle">IDLE</div>
+            <div class="agent">claude</div>
+            <div class="project">music-know-vault</div>
+            <div class="age">3m ago</div>
+            <div class="link bound">pane:0</div>
+            <div class="summary">confirmed Flyway startup behavior after dependency exclusion</div>
+          </div>
+          <div class="task">
+            <div class="status idle">IDLE</div>
+            <div class="agent">claude</div>
+            <div class="project">kb-workspace</div>
+            <div class="age">14m ago</div>
+            <div class="link bound">pane:4</div>
+            <div class="summary">last activity was reading deployment notes; no new output since</div>
+          </div>
+        </div>
+
+        <div class="lane">
+          <div class="lane-title">unbound / 1</div>
+          <div class="task">
+            <div class="status link">LINK</div>
+            <div class="agent">codex</div>
+            <div class="project">my-buddies</div>
+            <div class="age">42m ago</div>
+            <div class="link">unbound</div>
+            <div class="summary">session found in logs, but no reliable pane match</div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="detail">
+        <div class="detail-head">
+          <strong>selected task</strong>
+          <span>pane:7</span>
+        </div>
+        <div class="selected-card">
+          <div class="selected-title">
+            <div>
+              <h2>Route guard refactor</h2>
+              <span>/Users/hsy/dev/frontend</span>
+            </div>
+            <span class="status attn">ATTN</span>
+          </div>
+          <div class="callout">Tests failed after route guard changes. The agent is waiting for a decision before changing implementation direction.</div>
+          <div class="kv">
+            <div class="k">agent</div><div class="v">codex</div>
+            <div class="k">session</div><div class="v">019de0b2-71d0-demo</div>
+            <div class="k">binding</div><div class="v">pid tty match, cwd match</div>
+            <div class="k">summary</div><div class="v">route guard refactor caused a focused test failure</div>
+          </div>
+        </div>
+
+        <section class="instrument-panel trace-panel" data-panel="trace">
+          <div class="panel-head">
+            <div class="panel-title">
+              <strong>trace</strong>
+              <span>recent / 9 spans</span>
+            </div>
+            <div class="panel-actions">
+              <button class="icon-button panel-toggle" type="button" title="Expand trace" aria-label="Expand trace" data-target="trace">
+                <svg class="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M15 3h6v6"></path>
+                  <path d="M21 3l-7 7"></path>
+                  <path d="M9 21H3v-6"></path>
+                  <path d="M3 21l7-7"></path>
+                </svg>
+                <svg class="icon-restore" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M8 3v5H3"></path>
+                  <path d="M3 8l6-6"></path>
+                  <path d="M16 21v-5h5"></path>
+                  <path d="M21 16l-6 6"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="trace-list">
+              <div class="trace-row" style="--indent: 10px">
+                <span class="trace-status ok">OK</span>
+                <div class="trace-main">
+                  <div class="trace-title"><span class="trace-kind">TURN</span><span class="trace-name">refactor route guard behavior</span></div>
+                  <div class="trace-summary">Collected context, edited guard rules, then ran focused router tests.</div>
+                </div>
+                <span class="trace-duration">5m</span>
+              </div>
+              <div class="trace-row" style="--indent: 28px">
+                <span class="trace-status ok">OK</span>
+                <div class="trace-main">
+                  <div class="trace-title"><span class="trace-kind tool">TOOL</span><span class="trace-name">apply_patch</span></div>
+                  <div class="trace-summary">edited src/router/guards.ts and updated redirect handling</div>
+                </div>
+                <span class="trace-duration">31s</span>
+              </div>
+              <div class="trace-row" style="--indent: 28px">
+                <span class="trace-status fail">ERR</span>
+                <div class="trace-main">
+                  <div class="trace-title"><span class="trace-kind tool">TOOL</span><span class="trace-name">exec_command</span></div>
+                  <div class="trace-summary">pnpm test router.guard.spec.ts - 1 failed, 12 passed</div>
+                </div>
+                <span class="trace-duration">42s</span>
+              </div>
+              <div class="trace-row" style="--indent: 28px">
+                <span class="trace-status ok">OK</span>
+                <div class="trace-main">
+                  <div class="trace-title"><span class="trace-kind reply">REPLY</span><span class="trace-name">assistant response</span></div>
+                  <div class="trace-summary">asking whether to preserve legacy redirect behavior</div>
+                </div>
+                <span class="trace-duration">0s</span>
+              </div>
+              <div class="trace-row expanded-only" style="--indent: 28px">
+                <span class="trace-status ok">OK</span>
+                <div class="trace-main">
+                  <div class="trace-title"><span class="trace-kind tool">TOOL</span><span class="trace-name">read</span></div>
+                  <div class="trace-summary">opened existing route guard tests to compare the legacy redirect contract</div>
+                </div>
+                <span class="trace-duration">4s</span>
+              </div>
+              <div class="trace-row expanded-only" style="--indent: 28px">
+                <span class="trace-status ok">OK</span>
+                <div class="trace-main">
+                  <div class="trace-title"><span class="trace-kind tool">TOOL</span><span class="trace-name">rg</span></div>
+                  <div class="trace-summary">searched for redirectToLegacy, preserveQuery, and auth fallback call sites</div>
+                </div>
+                <span class="trace-duration">2s</span>
+              </div>
+              <div class="trace-row expanded-only" style="--indent: 28px">
+                <span class="trace-status running">RUN</span>
+                <div class="trace-main">
+                  <div class="trace-title"><span class="trace-kind worker">WORKER</span><span class="trace-name">summary analyzer</span></div>
+                  <div class="trace-summary">background summary process is preparing a short state update; not blocking current user decision</div>
+                </div>
+                <span class="trace-duration">18s</span>
+              </div>
+            </div>
+
+            <aside class="trace-inspector expanded-only">
+              <div class="inspector-section">
+                <h3>selected span</h3>
+                <p>exec_command failed in the focused test run. This is the only failed span in the recent trace window.</p>
+              </div>
+              <div class="inspector-section">
+                <h3>command</h3>
+                <pre class="output-block">pnpm test router.guard.spec.ts</pre>
+              </div>
+              <div class="inspector-section">
+                <h3>output excerpt</h3>
+                <pre class="output-block">1 failed, 12 passed
+
+Expected redirect target:
+  /auth/login?next=/dashboard
+
+Received:
+  /legacy-login?next=/dashboard</pre>
+              </div>
+              <div class="inspector-section">
+                <h3>trace policy</h3>
+                <p>Collapsed mode shows active branches or the last four relevant spans. Expanded mode keeps more rows and adds selected span detail.</p>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="instrument-panel status-panel" data-panel="status">
+          <div class="panel-head">
+            <div class="panel-title">
+              <strong>status logic</strong>
+              <span>attention_pattern</span>
+            </div>
+            <div class="panel-actions">
+              <button class="icon-button panel-toggle" type="button" title="Expand status logic" aria-label="Expand status logic" data-target="status">
+                <svg class="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M15 3h6v6"></path>
+                  <path d="M21 3l-7 7"></path>
+                  <path d="M9 21H3v-6"></path>
+                  <path d="M3 21l7-7"></path>
+                </svg>
+                <svg class="icon-restore" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M8 3v5H3"></path>
+                  <path d="M3 8l6-6"></path>
+                  <path d="M16 21v-5h5"></path>
+                  <path d="M21 16l-6 6"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="status-body">
+              <div class="explain-primary">
+                <span class="status attn">ATTN</span>
+                <span>tests failed; agent is waiting for a decision</span>
+              </div>
+              <div class="explain-grid">
+                <div>
+                  <span class="explain-key">assistant</span>
+                  <strong>16:40:08</strong>
+                </div>
+                <div>
+                  <span class="explain-key">active</span>
+                  <strong>none</strong>
+                </div>
+                <div>
+                  <span class="explain-key">background</span>
+                  <strong>summary analyzer</strong>
+                </div>
+              </div>
+              <div class="evidence-list">
+                <span>tests failed</span>
+                <span>latest assistant asks for decision</span>
+                <span>pane binding confidence 94%</span>
+                <span>no active blocking tool</span>
+              </div>
+            </div>
+
+            <aside class="logic-inspector expanded-only">
+              <div class="inspector-section">
+                <h3>rule ladder</h3>
+                <div class="rule-stack">
+                  <div class="rule">
+                    <div class="step">01</div>
+                    <div><strong>binding</strong><span>Pane is bound, so session is not unbound.</span></div>
+                  </div>
+                  <div class="rule">
+                    <div class="step">02</div>
+                    <div><strong>active trace</strong><span>No blocking tool or subagent is active for this turn.</span></div>
+                  </div>
+                  <div class="rule active">
+                    <div class="step">03</div>
+                    <div><strong>attention pattern</strong><span>Latest result contains a focused test failure and the assistant is asking for a decision.</span></div>
+                  </div>
+                  <div class="rule">
+                    <div class="step">04</div>
+                    <div><strong>waiting</strong><span>Skipped because attention has higher priority than a generic question state.</span></div>
+                  </div>
+                  <div class="rule">
+                    <div class="step">05</div>
+                    <div><strong>idle timeout</strong><span>Skipped because attention state wins even after the settle window.</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="inspector-section">
+                <h3>raw evidence</h3>
+                <pre class="output-block">EventResult: 1 failed, 12 passed
+EventAssistant: asking whether to preserve legacy redirect behavior
+TraceFailed: exec_command pnpm test router.guard.spec.ts
+Binding: pane:7, pid tty match, cwd match</pre>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <div class="timeline">
+          <div class="event"><time>16:37:03</time><div class="type">tool</div><div class="text">edited src/router/guards.ts</div></div>
+          <div class="event"><time>16:38:11</time><div class="type">tool</div><div class="text">ran pnpm test router.guard.spec.ts</div></div>
+          <div class="event"><time>16:39:02</time><div class="type">result</div><div class="text">1 failed, 12 passed</div></div>
+          <div class="event"><time>16:40:08</time><div class="type">assistant</div><div class="text">asking whether to preserve legacy redirect behavior</div></div>
+        </div>
+      </aside>
+    </section>
+
+    <footer class="footer">
+      <span>refreshed 16:48:12</span>
+      <span>click maximize on TRACE or STATUS LOGIC, press Escape to restore</span>
+    </footer>
+  </main>
+
+  <div class="overlay-scrim" aria-hidden="true"></div>
+
+  <script>
+    const body = document.body;
+    const panels = Array.from(document.querySelectorAll(".instrument-panel"));
+    const scrim = document.querySelector(".overlay-scrim");
+
+    function expandedPanel() {
+      return panels.find((panel) => panel.classList.contains("is-expanded"));
+    }
+
+    function expand(panel) {
+      const current = expandedPanel();
+      if (current && current !== panel) {
+        restore(current, true);
+      }
+      panel.classList.remove("is-closing");
+      panel.classList.add("is-expanded");
+      body.classList.add("has-expanded");
+      panel.querySelector(".panel-toggle").setAttribute("aria-label", "Restore panel");
+      panel.querySelector(".panel-toggle").setAttribute("title", "Restore panel");
+    }
+
+    function restore(panel, immediate = false) {
+      if (!panel) {
+        return;
+      }
+      const finish = () => {
+        panel.classList.remove("is-expanded", "is-closing");
+        panel.querySelector(".panel-toggle").setAttribute("aria-label", "Expand panel");
+        panel.querySelector(".panel-toggle").setAttribute("title", "Expand panel");
+        if (!expandedPanel()) {
+          body.classList.remove("has-expanded");
+        }
+      };
+      if (immediate) {
+        finish();
+        return;
+      }
+      panel.classList.add("is-closing");
+      window.setTimeout(finish, 150);
+    }
+
+    document.querySelectorAll(".panel-toggle").forEach((button) => {
+      button.addEventListener("click", () => {
+        const panel = button.closest(".instrument-panel");
+        if (panel.classList.contains("is-expanded")) {
+          restore(panel);
+        } else {
+          expand(panel);
+        }
+      });
+    });
+
+    scrim.addEventListener("click", () => restore(expandedPanel()));
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        restore(expandedPanel());
+      }
+    });
+  </script>
+</body>
+</html>
