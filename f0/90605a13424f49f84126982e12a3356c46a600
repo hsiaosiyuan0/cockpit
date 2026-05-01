@@ -1,0 +1,57 @@
+internal/discovery/prompts.go
+  7e6e02362e5fec10 1-160
+internal/promptsearch/search_test.go
+  7e6e02362e5fec10 1-248
+frontend/src/style.css
+  7e6e02362e5fec10 73,98-142,1218-1223,1238-1295,3278-3472,3475,3488-3491,3497-3498,3500-3502,3524,3530-3531,3536-3538,3540-3566,3568,3571-3573,3576-3599,3603-3604,3613,3616-3619,3623-3624,3629-3632,3635-3637,3642,3648,3651-3652,3654,3657-3659,3664-3670,3901-3902,3906-3927,3961
+app.go
+  7e6e02362e5fec10 17,21,78,195-208,229-321,421-427
+frontend/src/types.ts
+  7e6e02362e5fec10 111-125,207-208,282-284
+frontend/wailsjs/go/main/App.js
+  7e6e02362e5fec10 57-64,77-78
+frontend/src/main.tsx
+  7e6e02362e5fec10 4,7-52,55-57
+frontend/wailsjs/go/main/App.d.ts
+  7e6e02362e5fec10 33-36,43
+internal/app/store.go
+  7e6e02362e5fec10 22,53,72-74,112-123
+internal/engine/snapshot.go
+  7e6e02362e5fec10 93,102,115-119,121-128
+go.mod
+  7e6e02362e5fec10 8-9,29,41,43,45
+internal/promptsearch/search.go
+  7e6e02362e5fec10 1-769
+frontend/wailsjs/go/models.ts
+  7e6e02362e5fec10 290-291,314-315,333-366,751,756,760,770
+frontend/src/App.tsx
+  7e6e02362e5fec10 4,9,11,50-51,55,67,138,263-266,451-463,625-627,713-720,874-882,889,1158,1160,1165,1167,1169-1170,1185,1188-1248,1746-1855,1861,1869,1875,1886-1887,1889-1910,2798-2811
+frontend/src/api.ts
+  7e6e02362e5fec10 2,221-266,350-388
+share_server.go
+  7e6e02362e5fec10 79,157-172
+cmd/cockpit/main.go
+  7e6e02362e5fec10 19,22,55-56,76-77,81-177,256-260
+internal/app/types.go
+  7e6e02362e5fec10 150-164,246-247
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f090605a13424f49f84126982e12a3356c46a600",
+  "prompts": {
+    "7e6e02362e5fec10": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ddc4c-620e-77c0-83ef-46b3f0c7688b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "hsiaosiyuan0",
+      "messages": [],
+      "total_additions": 2646,
+      "total_deletions": 299,
+      "accepted_lines": 2761,
+      "overriden_lines": 0
+    }
+  }
+}
