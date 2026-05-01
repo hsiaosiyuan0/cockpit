@@ -1,0 +1,23 @@
+app.go
+  7e6e02362e5fec10 7-8,15,18,30,37-38,51-56,58-60,64,73,86,89,114,119,219,224,229,240,243,255,260,265,273,276,296-338
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "49d807d2b0863e99cc3cc5decb5c156bb397cc02",
+  "prompts": {
+    "7e6e02362e5fec10": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ddc4c-620e-77c0-83ef-46b3f0c7688b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "hsiaosiyuan0",
+      "messages": [],
+      "total_additions": 237,
+      "total_deletions": 153,
+      "accepted_lines": 421,
+      "overriden_lines": 0
+    }
+  }
+}
