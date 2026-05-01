@@ -16,6 +16,8 @@ export function GenerateDebrief(arg1:string):Promise<app.Task>;
 
 export function GetDemoSnapshot():Promise<app.Snapshot>;
 
+export function GetLogPath():Promise<string>;
+
 export function GetSettings():Promise<config.Settings>;
 
 export function GetShareServer():Promise<main.ShareServerInfo>;

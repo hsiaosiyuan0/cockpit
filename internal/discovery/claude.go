@@ -3,6 +3,8 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -26,15 +28,33 @@ func DiscoverClaude(ctx context.Context, cfg config.Config) ([]app.Session, erro
 		return nil, err
 	}
 	sessions := make([]app.Session, 0, len(paths))
+	var errs []error
+	var parseErrs int
+	var emptyIDs int
+	var lastErr error
+	var lastErrPath string
 	for _, path := range paths {
 		session, err := parseClaudeSession(path, cfg)
-		if err != nil || session.ID == "" {
+		if err != nil {
+			parseErrs++
+			lastErr = err
+			lastErrPath = path
+			continue
+		}
+		if session.ID == "" {
+			emptyIDs++
 			continue
 		}
 		session.Agent = app.AgentClaude
 		session.LogPath = path
 		markInternal(&session, cfg)
 		sessions = append(sessions, session)
+	}
+	if parseErrs > 0 {
+		errs = append(errs, fmt.Errorf("claude skipped %d log file(s), last parse error in %s: %w", parseErrs, lastErrPath, lastErr))
+	}
+	if emptyIDs > 0 {
+		errs = append(errs, fmt.Errorf("claude skipped %d log file(s) without a session id", emptyIDs))
 	}
 	live := loadClaudeLiveSessions(cfg)
 	for i := range sessions {
@@ -45,7 +65,7 @@ func DiscoverClaude(ctx context.Context, cfg config.Config) ([]app.Session, erro
 			}
 		}
 	}
-	return sessions, nil
+	return sessions, errors.Join(errs...)
 }
 
 func parseClaudeSession(path string, cfg config.Config) (app.Session, error) {

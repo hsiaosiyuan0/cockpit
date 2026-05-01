@@ -55,8 +55,10 @@ func (a *App) StartReadonlyServer() (ShareServerInfo, error) {
 
 	listener, err := net.Listen("tcp", readonlyServerDefaultAddr)
 	if err != nil {
+		a.logf("readonly server default listen failed addr=%s err=%v", readonlyServerDefaultAddr, err)
 		listener, err = net.Listen("tcp", "0.0.0.0:0")
 		if err != nil {
+			a.logf("readonly server listen failed err=%v", err)
 			return ShareServerInfo{}, fmt.Errorf("start readonly server: %w", err)
 		}
 	}
@@ -94,10 +96,12 @@ func (a *App) StartReadonlyServer() (ShareServerInfo, error) {
 
 	go func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			a.logf("readonly server stopped err=%v", err)
 			fmt.Printf("readonly cockpit server stopped: %v\n", err)
 		}
 	}()
 
+	a.logf("readonly server started url=%s listen=%s", info.URL, info.ListenAddr)
 	return info, nil
 }
 
@@ -130,9 +134,11 @@ func (a *App) readonlySnapshotHandler(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	snap, err := engine.BuildSnapshot(ctx, a.currentConfig(), a.store)
 	if err != nil {
+		a.logSnapshotOutcome("readonly", snap, err)
 		writeReadonlyError(w, http.StatusInternalServerError, err)
 		return
 	}
+	a.logSnapshotOutcome("readonly", snap, nil)
 	writeReadonlyJSON(w, snap)
 }
 

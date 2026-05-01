@@ -17,6 +17,7 @@ import (
 	"cockpit/internal/app"
 	"cockpit/internal/config"
 	"cockpit/internal/engine"
+	"cockpit/internal/execpath"
 	"cockpit/internal/summary"
 	"cockpit/internal/wezterm"
 )
@@ -338,7 +339,7 @@ func runDoctor(cfg config.Config) error {
 		{"codex sessions", func() error { return hasGlob(filepath.Join(cfg.CodexHome, "sessions", "*", "*", "*", "*.jsonl")) }},
 		{"claude projects", func() error { return dirExists(filepath.Join(cfg.ClaudeHome, "projects")) }},
 		{"wezterm cli", func() error {
-			_, err := exec.LookPath(cfg.WeztermBin)
+			_, err := exec.LookPath(execpath.Resolve(cfg.WeztermBin))
 			return err
 		}},
 		{"wezterm panes", func() error {
@@ -348,7 +349,7 @@ func runDoctor(cfg config.Config) error {
 			return err
 		}},
 		{"codex exec", func() error {
-			cmd := exec.Command(cfg.CodexBin, "exec", "--help")
+			cmd := exec.Command(execpath.Resolve(cfg.CodexBin), "exec", "--help")
 			cmd.Env = append(os.Environ(), "COCKPIT_INTERNAL=1")
 			return cmd.Run()
 		}},

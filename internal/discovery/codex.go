@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -26,9 +27,21 @@ func DiscoverCodex(ctx context.Context, cfg config.Config) ([]app.Session, error
 		return nil, err
 	}
 	sessions := make([]app.Session, 0, len(paths))
+	var errs []error
+	var parseErrs int
+	var emptyIDs int
+	var lastErr error
+	var lastErrPath string
 	for _, path := range paths {
 		session, err := parseCodexSession(path, cfg)
-		if err != nil || session.ID == "" {
+		if err != nil {
+			parseErrs++
+			lastErr = err
+			lastErrPath = path
+			continue
+		}
+		if session.ID == "" {
+			emptyIDs++
 			continue
 		}
 		session.Agent = app.AgentCodex
@@ -36,8 +49,14 @@ func DiscoverCodex(ctx context.Context, cfg config.Config) ([]app.Session, error
 		markInternal(&session, cfg)
 		sessions = append(sessions, session)
 	}
+	if parseErrs > 0 {
+		errs = append(errs, fmt.Errorf("codex skipped %d log file(s), last parse error in %s: %w", parseErrs, lastErrPath, lastErr))
+	}
+	if emptyIDs > 0 {
+		errs = append(errs, fmt.Errorf("codex skipped %d log file(s) without a session id", emptyIDs))
+	}
 	enrichCodexPIDs(ctx, cfg, sessions)
-	return sessions, nil
+	return sessions, errors.Join(errs...)
 }
 
 func parseCodexSession(path string, cfg config.Config) (app.Session, error) {

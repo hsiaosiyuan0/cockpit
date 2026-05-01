@@ -137,4 +137,6 @@ cockpit attach --detach <task-or-session-prefix>
 
 ## Data
 
-Cockpit stores settings under `~/.local/state/cockpit` by default. Summaries and debriefs run through isolated headless Codex processes. Cockpit marks those internal runs and filters them out of the dashboard, so its own analysis does not show up as user work.
+Cockpit stores settings under `~/.local/state/cockpit` by default. The desktop app also writes a diagnostic log at `~/.local/state/cockpit/cockpit.log`; this is the first place to check when a downloaded app can see the UI but cannot find sessions, WezTerm, or headless Codex.
+
+Summaries and debriefs run through isolated headless Codex processes. Cockpit marks those internal runs and filters them out of the dashboard, so its own analysis does not show up as user work.

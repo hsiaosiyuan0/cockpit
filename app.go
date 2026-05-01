@@ -4,14 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	cockpitapp "cockpit/internal/app"
+	"cockpit/internal/applog"
 	"cockpit/internal/config"
 	"cockpit/internal/engine"
+	"cockpit/internal/execpath"
 	"cockpit/internal/notify"
 	"cockpit/internal/summary"
 	"cockpit/internal/wezterm"
@@ -23,12 +27,15 @@ type App struct {
 	ctx     context.Context
 	cfg     config.Config
 	store   *cockpitapp.Store
+	logger  *applog.Logger
 	initErr error
 
 	mu                     sync.Mutex
 	share                  *readonlyServer
 	seenStatuses           map[string]cockpitapp.Status
 	seenNotificationStates map[string]string
+	lastSnapshotLogAt      time.Time
+	lastSnapshotSignature  string
 	notifyReady            bool
 }
 
@@ -41,10 +48,20 @@ func NewApp() *App {
 			seenNotificationStates: map[string]string{},
 		}
 	}
+	logger, logErr := applog.New(cfg.StateDir)
+	if logErr == nil {
+		logStartup(logger, cfg)
+	} else {
+		fmt.Printf("cockpit log unavailable: %v\n", logErr)
+	}
 	store, err := cockpitapp.NewStore(cfg)
+	if err != nil && logger != nil {
+		logger.Printf("store init failed: %v", err)
+	}
 	return &App{
 		cfg:                    cfg,
 		store:                  store,
+		logger:                 logger,
 		initErr:                err,
 		seenStatuses:           map[string]cockpitapp.Status{},
 		seenNotificationStates: map[string]string{},
@@ -53,6 +70,7 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.logf("wails startup complete")
 	go a.setupNotifications(ctx)
 }
 
@@ -65,8 +83,10 @@ func (a *App) GetSnapshot() (cockpitapp.Snapshot, error) {
 	cfg := a.currentConfig()
 	snap, err := engine.BuildSnapshot(ctx, cfg, a.store)
 	if err != nil {
+		a.logSnapshotOutcome("app", snap, err)
 		return snap, err
 	}
+	a.logSnapshotOutcome("app", snap, nil)
 	a.notifyTransitions(ctx, snap.Tasks)
 	return snap, nil
 }
@@ -91,10 +111,12 @@ func (a *App) SaveSettings(settings config.Settings) (config.Settings, error) {
 	saved := nextCfg.Settings()
 	if err := config.SaveSettings(nextCfg.SettingsPath, saved); err != nil {
 		a.mu.Unlock()
+		a.logf("settings save failed err=%v", err)
 		return config.Settings{}, err
 	}
 	a.cfg = nextCfg
 	a.mu.Unlock()
+	a.logf("settings saved codex_home=%s claude_home=%s codex_bin=%s resolved_codex=%s wezterm_bin=%s resolved_wezterm=%s", nextCfg.CodexHome, nextCfg.ClaudeHome, nextCfg.CodexBin, execpath.Resolve(nextCfg.CodexBin), nextCfg.WeztermBin, execpath.Resolve(nextCfg.WeztermBin))
 	return saved, nil
 }
 
@@ -194,14 +216,17 @@ func (a *App) RefreshSummary(taskID string) (cockpitapp.Task, error) {
 	if !cfg.EnableLLMSummary {
 		return cockpitapp.Task{}, errors.New("LLM summary is disabled in settings")
 	}
+	a.logf("summary requested task=%s codex_bin=%s resolved_codex=%s", taskID, cfg.CodexBin, execpath.Resolve(cfg.CodexBin))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	snap, err := engine.BuildSnapshot(ctx, cfg, a.store)
 	if err != nil {
+		a.logf("summary snapshot failed task=%s err=%v snapshot_errors=%s", taskID, err, strings.Join(snap.Errors, " | "))
 		return cockpitapp.Task{}, err
 	}
 	task, err := findTask(snap.Tasks, taskID)
 	if err != nil {
+		a.logf("summary task lookup failed task=%s err=%v", taskID, err)
 		return cockpitapp.Task{}, err
 	}
 	if task.Session.Internal {
@@ -212,8 +237,10 @@ func (a *App) RefreshSummary(taskID string) (cockpitapp.Task, error) {
 	}
 	summarizer := summary.NewCodexSummarizer(cfg, a.store)
 	if err := summarizer.Refresh(ctx, &task); err != nil {
+		a.logf("summary failed task=%s err=%v", task.ID, err)
 		return task, err
 	}
+	a.logf("summary completed task=%s", task.ID)
 	return task, nil
 }
 
@@ -225,14 +252,17 @@ func (a *App) GenerateDebrief(taskID string) (cockpitapp.Task, error) {
 	if !cfg.EnableLLMSummary {
 		return cockpitapp.Task{}, errors.New("LLM summary is disabled in settings")
 	}
+	a.logf("debrief requested task=%s codex_bin=%s resolved_codex=%s", taskID, cfg.CodexBin, execpath.Resolve(cfg.CodexBin))
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	snap, err := engine.BuildSnapshot(ctx, cfg, a.store)
 	if err != nil {
+		a.logf("debrief snapshot failed task=%s err=%v snapshot_errors=%s", taskID, err, strings.Join(snap.Errors, " | "))
 		return cockpitapp.Task{}, err
 	}
 	task, err := findTask(snap.Tasks, taskID)
 	if err != nil {
+		a.logf("debrief task lookup failed task=%s err=%v", taskID, err)
 		return cockpitapp.Task{}, err
 	}
 	if task.Session.Internal {
@@ -240,8 +270,10 @@ func (a *App) GenerateDebrief(taskID string) (cockpitapp.Task, error) {
 	}
 	summarizer := summary.NewCodexSummarizer(cfg, a.store)
 	if err := summarizer.Debrief(ctx, &task); err != nil {
+		a.logf("debrief failed task=%s err=%v", task.ID, err)
 		return task, err
 	}
+	a.logf("debrief completed task=%s", task.ID)
 	return task, nil
 }
 
@@ -259,6 +291,51 @@ func (a *App) currentConfig() config.Config {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.cfg
+}
+
+func (a *App) GetLogPath() string {
+	if a.logger == nil {
+		return ""
+	}
+	return a.logger.Path()
+}
+
+func (a *App) logf(format string, args ...any) {
+	if a == nil || a.logger == nil {
+		return
+	}
+	a.logger.Printf(format, args...)
+}
+
+func (a *App) logSnapshotOutcome(source string, snap cockpitapp.Snapshot, err error) {
+	errorText := strings.Join(snap.Errors, " | ")
+	signature := fmt.Sprintf("%s|tasks=%d|panes=%d|missions=%d|errors=%s|err=%v", source, len(snap.Tasks), len(snap.Panes), len(snap.Missions), errorText, err)
+	a.mu.Lock()
+	shouldLog := err != nil || errorText != "" || signature != a.lastSnapshotSignature || time.Since(a.lastSnapshotLogAt) > time.Minute
+	if shouldLog {
+		a.lastSnapshotSignature = signature
+		a.lastSnapshotLogAt = time.Now()
+	}
+	a.mu.Unlock()
+	if !shouldLog {
+		return
+	}
+	if err != nil {
+		a.logf("snapshot failed source=%s tasks=%d panes=%d errors=%s err=%v", source, len(snap.Tasks), len(snap.Panes), errorText, err)
+		return
+	}
+	if errorText != "" {
+		a.logf("snapshot completed with errors source=%s tasks=%d panes=%d errors=%s", source, len(snap.Tasks), len(snap.Panes), errorText)
+		return
+	}
+	a.logf("snapshot completed source=%s tasks=%d panes=%d missions=%d", source, len(snap.Tasks), len(snap.Panes), len(snap.Missions))
+}
+
+func logStartup(logger *applog.Logger, cfg config.Config) {
+	logger.Printf("cockpit starting pid=%d go=%s/%s path=%s", os.Getpid(), goruntime.GOOS, goruntime.GOARCH, os.Getenv("PATH"))
+	logger.Printf("state_dir=%s settings_path=%s internal_run_dir=%s", cfg.StateDir, cfg.SettingsPath, cfg.InternalRunDir)
+	logger.Printf("homes codex=%s claude=%s", cfg.CodexHome, cfg.ClaudeHome)
+	logger.Printf("bins codex=%s resolved_codex=%s wezterm=%s resolved_wezterm=%s", cfg.CodexBin, execpath.Resolve(cfg.CodexBin), cfg.WeztermBin, execpath.Resolve(cfg.WeztermBin))
 }
 
 func (a *App) notifyTransitions(ctx context.Context, tasks []cockpitapp.Task) {

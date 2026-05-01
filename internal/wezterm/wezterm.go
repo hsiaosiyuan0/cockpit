@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"cockpit/internal/app"
+	"cockpit/internal/execpath"
 	"cockpit/internal/macosfocus"
 )
 
@@ -28,7 +29,7 @@ type paneJSON struct {
 }
 
 func ListPanes(ctx context.Context, weztermBin string) ([]app.Pane, error) {
-	cmd := exec.CommandContext(ctx, weztermBin, "cli", "list", "--format", "json")
+	cmd := exec.CommandContext(ctx, execpath.Resolve(weztermBin), "cli", "list", "--format", "json")
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -59,7 +60,7 @@ func ActivatePane(ctx context.Context, weztermBin, paneID string) error {
 	if _, err := strconv.Atoi(paneID); err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, weztermBin, "cli", "activate-pane", "--pane-id", paneID)
+	cmd := exec.CommandContext(ctx, execpath.Resolve(weztermBin), "cli", "activate-pane", "--pane-id", paneID)
 	if err := cmd.Run(); err != nil {
 		return err
 	}

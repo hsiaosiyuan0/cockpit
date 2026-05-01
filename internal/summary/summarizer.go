@@ -15,6 +15,7 @@ import (
 
 	"cockpit/internal/app"
 	"cockpit/internal/config"
+	"cockpit/internal/execpath"
 	"cockpit/internal/redact"
 )
 
@@ -73,7 +74,7 @@ func (s *CodexSummarizer) Refresh(ctx context.Context, task *app.Task) error {
 	prompt := buildPrompt(*task, runID)
 
 	cmd := exec.CommandContext(ctx,
-		s.cfg.CodexBin,
+		execpath.Resolve(s.cfg.CodexBin),
 		"exec",
 		"--ephemeral",
 		"--skip-git-repo-check",
@@ -137,7 +138,7 @@ func (s *CodexSummarizer) Debrief(ctx context.Context, task *app.Task) error {
 	outFile := filepath.Join(runDir, "debrief.md")
 	prompt := buildDebriefPrompt(*task, runID)
 	cmd := exec.CommandContext(ctx,
-		s.cfg.CodexBin,
+		execpath.Resolve(s.cfg.CodexBin),
 		"exec",
 		"--ephemeral",
 		"--skip-git-repo-check",

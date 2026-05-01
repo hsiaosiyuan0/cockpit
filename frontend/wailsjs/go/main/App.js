@@ -26,6 +26,10 @@ export function GetDemoSnapshot() {
   return window['go']['main']['App']['GetDemoSnapshot']();
 }
 
+export function GetLogPath() {
+  return window['go']['main']['App']['GetLogPath']();
+}
+
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }

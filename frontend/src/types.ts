@@ -251,6 +251,7 @@ export interface Settings {
 export interface CockpitAPI {
   GetSnapshot(): Promise<Snapshot>;
   GetDemoSnapshot(): Promise<Snapshot>;
+  GetLogPath(): Promise<string>;
   GetSettings(): Promise<Settings>;
   GetShareServer(): Promise<ShareServerInfo>;
   StartReadonlyServer(): Promise<ShareServerInfo>;
