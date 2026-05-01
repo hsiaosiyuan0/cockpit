@@ -83,6 +83,7 @@ export const defaultSettings: Settings = {
   notify_attention: true,
   notify_completed: true,
   notify_stuck: true,
+  notify_input_sound: true,
   notification_mode: "normal",
   quiet_hours_enabled: false,
   quiet_hours_start: "22:00",

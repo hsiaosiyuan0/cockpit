@@ -176,6 +176,8 @@ export interface Task {
   attention_reason?: string;
   summary?: string;
   summary_at?: string;
+  input_alert_at?: string;
+  input_alert_reason?: string;
   diff?: DiffRadar;
   flight?: FlightEvent[];
   debrief?: Debrief;
@@ -258,6 +260,7 @@ export interface Settings {
   notify_attention: boolean;
   notify_completed: boolean;
   notify_stuck: boolean;
+  notify_input_sound: boolean;
   notification_mode: "normal" | "focus" | "silent";
   quiet_hours_enabled: boolean;
   quiet_hours_start: string;

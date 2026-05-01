@@ -586,9 +586,21 @@ select:disabled {
   background: rgba(224, 180, 92, 0.06);
 }
 
+.caution-chip.input-alert {
+  border-color: rgba(96, 194, 202, 0.68);
+  background:
+    linear-gradient(90deg, rgba(96, 194, 202, 0.14), rgba(224, 108, 117, 0.08)),
+    rgba(255, 255, 255, 0.028);
+  box-shadow: inset 0 0 0 1px rgba(96, 194, 202, 0.12), 0 0 20px rgba(96, 194, 202, 0.08);
+}
+
 .caution-chip span {
   color: var(--red);
   font-weight: 800;
+}
+
+.caution-chip.input-alert span {
+  color: var(--cyan);
 }
 
 .caution-chip strong,
@@ -1184,6 +1196,29 @@ select:disabled {
   box-shadow: inset 3px 0 0 var(--cyan);
 }
 
+.task-row.input-alert {
+  background:
+    linear-gradient(90deg, rgba(96, 194, 202, 0.12), rgba(96, 194, 202, 0.015) 42%, transparent),
+    rgba(255, 255, 255, 0.014);
+  box-shadow: inset 3px 0 0 var(--cyan);
+}
+
+.task-row.input-alert.selected {
+  background:
+    linear-gradient(90deg, rgba(96, 194, 202, 0.2), rgba(96, 194, 202, 0.035) 48%, transparent),
+    #222832;
+}
+
+.task-row.input-alert::before {
+  content: "";
+  position: absolute;
+  inset: 6px auto 6px 0;
+  width: 3px;
+  background: var(--cyan);
+  box-shadow: 0 0 14px rgba(96, 194, 202, 0.72);
+  animation: signalPulse 1.8s ease-in-out infinite;
+}
+
 .task-row.launching,
 .detail.launching .selected-card {
   animation: launchLock 520ms ease;
@@ -1372,14 +1407,35 @@ select:disabled {
   white-space: nowrap;
 }
 
+.input-alert-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 8px;
+  padding: 2px 6px;
+  border: 1px solid rgba(96, 194, 202, 0.34);
+  color: var(--cyan);
+  background: rgba(96, 194, 202, 0.08);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .callsign {
   color: var(--cyan);
   letter-spacing: 0;
 }
 
 .status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-weight: 800;
   font-size: 11px;
+}
+
+.status-pill.sound-alert {
+  color: var(--cyan);
+  text-shadow: 0 0 10px rgba(96, 194, 202, 0.32);
 }
 
 .status-pill.unknown {
@@ -1502,6 +1558,30 @@ select:disabled {
   color: #f0c0c4;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.input-alert-callout {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-color: rgba(96, 194, 202, 0.52);
+  color: #b8f4f8;
+  background:
+    linear-gradient(90deg, rgba(96, 194, 202, 0.13), rgba(96, 194, 202, 0.035)),
+    rgba(96, 194, 202, 0.035);
+}
+
+.input-alert-callout strong {
+  text-transform: uppercase;
+}
+
+.input-alert-callout span {
+  min-width: 0;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .action-row {
@@ -3745,6 +3825,18 @@ select:disabled {
   }
   50% {
     box-shadow: 0 0 0 5px rgba(224, 108, 117, 0);
+  }
+}
+
+@keyframes signalPulse {
+  0%,
+  100% {
+    opacity: 0.52;
+    transform: scaleY(0.72);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1);
   }
 }
 

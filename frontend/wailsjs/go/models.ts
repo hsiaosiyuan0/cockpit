@@ -555,6 +555,8 @@ export namespace app {
 	    attention_reason?: string;
 	    summary?: string;
 	    summary_at?: string;
+	    input_alert_at?: string;
+	    input_alert_reason?: string;
 	    diff?: DiffRadar;
 	    flight?: FlightEvent[];
 	    debrief?: Debrief;
@@ -575,6 +577,8 @@ export namespace app {
 	        this.attention_reason = source["attention_reason"];
 	        this.summary = source["summary"];
 	        this.summary_at = source["summary_at"];
+	        this.input_alert_at = source["input_alert_at"];
+	        this.input_alert_reason = source["input_alert_reason"];
 	        this.diff = this.convertValues(source["diff"], DiffRadar);
 	        this.flight = this.convertValues(source["flight"], FlightEvent);
 	        this.debrief = this.convertValues(source["debrief"], Debrief);
@@ -691,6 +695,7 @@ export namespace config {
 	    notify_attention: boolean;
 	    notify_completed: boolean;
 	    notify_stuck: boolean;
+	    notify_input_sound: boolean;
 	    notification_mode: string;
 	    quiet_hours_enabled: boolean;
 	    quiet_hours_start: string;
@@ -719,6 +724,7 @@ export namespace config {
 	        this.notify_attention = source["notify_attention"];
 	        this.notify_completed = source["notify_completed"];
 	        this.notify_stuck = source["notify_stuck"];
+	        this.notify_input_sound = source["notify_input_sound"];
 	        this.notification_mode = source["notification_mode"];
 	        this.quiet_hours_enabled = source["quiet_hours_enabled"];
 	        this.quiet_hours_start = source["quiet_hours_start"];

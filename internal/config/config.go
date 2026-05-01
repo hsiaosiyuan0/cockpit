@@ -29,6 +29,7 @@ type Config struct {
 	NotifyAttention  bool
 	NotifyCompleted  bool
 	NotifyStuck      bool
+	NotifyInputSound bool
 	NotificationMode string
 	QuietHours       QuietHours
 	AttentionRules   []AttentionRule
@@ -67,6 +68,7 @@ type Settings struct {
 	NotifyAttention        bool            `json:"notify_attention"`
 	NotifyCompleted        bool            `json:"notify_completed"`
 	NotifyStuck            bool            `json:"notify_stuck"`
+	NotifyInputSound       bool            `json:"notify_input_sound"`
 	NotificationMode       string          `json:"notification_mode"`
 	QuietHoursEnabled      bool            `json:"quiet_hours_enabled"`
 	QuietHoursStart        string          `json:"quiet_hours_start"`
@@ -98,6 +100,7 @@ func Load() (Config, error) {
 		NotifyAttention:  boolEnv("COCKPIT_NOTIFY_ATTENTION", true),
 		NotifyCompleted:  boolEnv("COCKPIT_NOTIFY_COMPLETED", true),
 		NotifyStuck:      boolEnv("COCKPIT_NOTIFY_STUCK", true),
+		NotifyInputSound: boolEnv("COCKPIT_NOTIFY_INPUT_SOUND", true),
 		NotificationMode: envOr("COCKPIT_NOTIFICATION_MODE", "normal"),
 		QuietHours: QuietHours{
 			Enabled: boolEnv("COCKPIT_QUIET_HOURS", false),
@@ -130,6 +133,7 @@ func (cfg Config) Settings() Settings {
 		NotifyAttention:        cfg.NotifyAttention,
 		NotifyCompleted:        cfg.NotifyCompleted,
 		NotifyStuck:            cfg.NotifyStuck,
+		NotifyInputSound:       cfg.NotifyInputSound,
 		NotificationMode:       cfg.NotificationMode,
 		QuietHoursEnabled:      cfg.QuietHours.Enabled,
 		QuietHoursStart:        cfg.QuietHours.Start,
@@ -177,6 +181,7 @@ func ApplySettings(cfg Config, settings Settings) Config {
 	cfg.NotifyAttention = settings.NotifyAttention
 	cfg.NotifyCompleted = settings.NotifyCompleted
 	cfg.NotifyStuck = settings.NotifyStuck
+	cfg.NotifyInputSound = settings.NotifyInputSound
 	cfg.NotificationMode = settings.NotificationMode
 	cfg.QuietHours = QuietHours{
 		Enabled: settings.QuietHoursEnabled,

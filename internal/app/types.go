@@ -207,19 +207,21 @@ type Binding struct {
 }
 
 type Task struct {
-	ID              string            `json:"id"`
-	Session         Session           `json:"session"`
-	Binding         Binding           `json:"binding"`
-	Status          Status            `json:"status"`
-	StatusExplain   StatusExplanation `json:"status_explanation,omitempty"`
-	AttentionReason string            `json:"attention_reason,omitempty"`
-	Summary         string            `json:"summary,omitempty"`
-	SummaryAt       time.Time         `json:"summary_at,omitempty" ts_type:"string"`
-	Diff            DiffRadar         `json:"diff,omitempty"`
-	Flight          []FlightEvent     `json:"flight,omitempty"`
-	Debrief         *Debrief          `json:"debrief,omitempty"`
-	Archived        bool              `json:"archived,omitempty"`
-	Ignored         bool              `json:"ignored,omitempty"`
+	ID               string            `json:"id"`
+	Session          Session           `json:"session"`
+	Binding          Binding           `json:"binding"`
+	Status           Status            `json:"status"`
+	StatusExplain    StatusExplanation `json:"status_explanation,omitempty"`
+	AttentionReason  string            `json:"attention_reason,omitempty"`
+	Summary          string            `json:"summary,omitempty"`
+	SummaryAt        time.Time         `json:"summary_at,omitempty" ts_type:"string"`
+	InputAlertAt     *time.Time        `json:"input_alert_at,omitempty" ts_type:"string"`
+	InputAlertReason string            `json:"input_alert_reason,omitempty"`
+	Diff             DiffRadar         `json:"diff,omitempty"`
+	Flight           []FlightEvent     `json:"flight,omitempty"`
+	Debrief          *Debrief          `json:"debrief,omitempty"`
+	Archived         bool              `json:"archived,omitempty"`
+	Ignored          bool              `json:"ignored,omitempty"`
 }
 
 type DoneInboxItem struct {

@@ -3,12 +3,20 @@ package notify
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
 	"cockpit/internal/app"
 )
+
+var inputSoundCandidates = []string{
+	"/System/Library/Sounds/Glass.aiff",
+	"/System/Library/Sounds/Ping.aiff",
+	"/System/Library/Sounds/Tink.aiff",
+}
 
 type Message struct {
 	ID     string
@@ -63,10 +71,7 @@ func BuildStateMessage(task app.Task, state string) (Message, bool) {
 	if state == "" {
 		return Message{}, false
 	}
-	kind := state
-	if strings.HasPrefix(state, "stuck:") {
-		kind = "stuck"
-	}
+	kind := notificationKind(state)
 	title := messageTitle(task, kind)
 	body := messageBody(task, kind)
 	message := Message{
@@ -84,6 +89,39 @@ func BuildStateMessage(task app.Task, state string) (Message, bool) {
 	return message, true
 }
 
+func ShouldPlayInputSound(task app.Task, state string) bool {
+	switch notificationKind(state) {
+	case "waiting":
+		return true
+	case "attention", "blocked":
+		return looksLikeInputRequired(task)
+	default:
+		return false
+	}
+}
+
+func PlayInputSound(ctx context.Context) error {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	player, err := exec.LookPath("afplay")
+	if err != nil {
+		return nil
+	}
+	sound := firstExistingInputSound()
+	if sound == "" {
+		return nil
+	}
+	return exec.CommandContext(ctx, player, sound).Run()
+}
+
+func notificationKind(state string) string {
+	if strings.HasPrefix(state, "stuck:") {
+		return "stuck"
+	}
+	return state
+}
+
 func messageTitle(task app.Task, kind string) string {
 	switch kind {
 	case "attention":
@@ -99,6 +137,62 @@ func messageTitle(task app.Task, kind string) string {
 	default:
 		return "Cockpit: " + string(task.Session.Agent) + " " + task.RepoName()
 	}
+}
+
+func looksLikeInputRequired(task app.Task) bool {
+	parts := []string{
+		task.AttentionReason,
+		task.StatusExplain.Reason,
+		task.StatusExplain.Rule,
+		task.StatusExplain.RuleSeverity,
+	}
+	if task.StatusExplain.AttentionEvent != nil {
+		parts = append(parts, task.StatusExplain.AttentionEvent.Text, task.StatusExplain.AttentionEvent.Detail)
+	}
+	for _, evidence := range task.StatusExplain.Evidence {
+		parts = append(parts, evidence)
+	}
+	text := strings.ToLower(strings.Join(parts, " "))
+	for _, pattern := range []string{
+		"user input",
+		"your reply",
+		"asking for a decision",
+		"decision",
+		"confirm",
+		"confirmation",
+		"permission",
+		"approval",
+		"auth",
+		"login",
+		"credential",
+		"need your",
+		"requires your",
+		"需要你",
+		"请确认",
+		"确认",
+		"决定",
+		"选择",
+		"输入",
+		"授权",
+		"登录",
+		"凭证",
+		"要不要",
+		"是否",
+	} {
+		if strings.Contains(text, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+func firstExistingInputSound() string {
+	for _, candidate := range inputSoundCandidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return ""
 }
 
 func messageBody(task app.Task, kind string) string {

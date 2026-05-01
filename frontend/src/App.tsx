@@ -733,7 +733,7 @@ function App() {
                     role="button"
                     tabIndex={0}
                     title={readonly ? "Readonly LAN view: select task" : task.binding.pane ? "Double-click or press Enter to open the bound WezTerm pane" : "Select task"}
-                    className={`task-row flight-strip ${task.id === selected?.id ? "selected" : ""} ${launchingID === task.id ? "launching" : ""} ${isHidden(task) ? "hidden-row" : ""}`}
+                    className={`task-row flight-strip ${task.id === selected?.id ? "selected" : ""} ${launchingID === task.id ? "launching" : ""} ${isHidden(task) ? "hidden-row" : ""} ${hasInputAlert(task) ? "input-alert" : ""}`}
                     key={task.id}
                     onClick={() => setSelectedID(task.id)}
                     onDoubleClick={() => {
@@ -748,7 +748,10 @@ function App() {
                       }
                     }}
                   >
-                    <span className={`status-pill ${statusClass(task.status)}`}>{statusLabel[task.status]}</span>
+                    <span className={`status-pill ${statusClass(task.status)} ${hasInputAlert(task) ? "sound-alert" : ""}`}>
+                      {hasInputAlert(task) ? <BellRing size={12} /> : null}
+                      {statusLabel[task.status]}
+                    </span>
                     <span className="agent">{task.session.agent}</span>
                     <span className="project callsign">{callsign(task)}</span>
                     <span className="age">{relativeAge(task.session.last_event_at)}</span>
@@ -767,7 +770,10 @@ function App() {
                       <span>{bindingLabel(task)}</span>
                     </span>
                     <DiffHeatStrip diff={task.diff} />
-                    <span className="summary">{task.summary || task.attention_reason || "no summary yet"}</span>
+                    <span className="summary">
+                      {hasInputAlert(task) ? <span className="input-alert-chip">RANG {relativeAge(task.input_alert_at)}</span> : null}
+                      {task.summary || task.attention_reason || "no summary yet"}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -1029,7 +1035,7 @@ function BrandGauge() {
 function MasterCaution({ tasks, onSelectTask }: { tasks: Task[]; onSelectTask: (taskID: string) => void }) {
   const cautions = tasks
     .filter((task) => ["needs_attention", "blocked", "drift", "waiting"].includes(task.status))
-    .sort((a, b) => statusSeverity(b.status) - statusSeverity(a.status))
+    .sort((a, b) => Number(hasInputAlert(b)) - Number(hasInputAlert(a)) || statusSeverity(b.status) - statusSeverity(a.status))
     .slice(0, 3);
   if (cautions.length === 0) {
     return null;
@@ -1042,10 +1048,10 @@ function MasterCaution({ tasks, onSelectTask }: { tasks: Task[]; onSelectTask: (
       </div>
       <div className="caution-stack">
         {cautions.map((task) => (
-          <button className={`caution-chip ${statusClass(task.status)}`} type="button" key={task.id} onClick={() => onSelectTask(task.id)}>
-            <span>{statusLabel[task.status]}</span>
+          <button className={`caution-chip ${statusClass(task.status)} ${hasInputAlert(task) ? "input-alert" : ""}`} type="button" key={task.id} onClick={() => onSelectTask(task.id)}>
+            <span>{hasInputAlert(task) ? "RANG" : statusLabel[task.status]}</span>
             <strong>{repoName(task)}</strong>
-            <em>{task.attention_reason || task.status_explanation?.reason || task.summary || "attention required"}</em>
+            <em>{task.input_alert_reason || task.attention_reason || task.status_explanation?.reason || task.summary || "attention required"}</em>
           </button>
         ))}
       </div>
@@ -1992,8 +1998,19 @@ function TaskDetail({
             <h2>{task.session.title || repoName(task)}</h2>
             <span>{task.session.agent} / {shortID(task)}</span>
           </div>
-          <span className={`status-pill ${statusClass(task.status)}`}>{statusLabel[task.status]}</span>
+          <span className={`status-pill ${statusClass(task.status)} ${hasInputAlert(task) ? "sound-alert" : ""}`}>
+            {hasInputAlert(task) ? <BellRing size={12} /> : null}
+            {statusLabel[task.status]}
+          </span>
         </div>
+
+        {hasInputAlert(task) ? (
+          <div className="callout input-alert-callout">
+            <BellRing size={14} />
+            <strong>input sound</strong>
+            <span>{task.input_alert_reason || "waiting for user input"} / {relativeAge(task.input_alert_at)}</span>
+          </div>
+        ) : null}
 
         {(task.attention_reason || task.status === "needs_attention") && (
           <div className="callout">{task.attention_reason || task.summary}</div>
@@ -2307,6 +2324,10 @@ function SettingsPanel({
               <label className="toggle-row">
                 <input type="checkbox" checked={draft.notify_attention} onChange={(event) => update("notify_attention", event.target.checked)} />
                 <span>needs decision</span>
+              </label>
+              <label className="toggle-row">
+                <input type="checkbox" checked={draft.notify_input_sound} onChange={(event) => update("notify_input_sound", event.target.checked)} />
+                <span>input sound</span>
               </label>
               <label className="toggle-row">
                 <input type="checkbox" checked={draft.notify_completed} onChange={(event) => update("notify_completed", event.target.checked)} />
@@ -2687,6 +2708,10 @@ function isHidden(task: Task) {
   return Boolean(task.archived || task.ignored);
 }
 
+function hasInputAlert(task: Task) {
+  return Boolean(validRecentDate(task.input_alert_at, 15 * 60_000));
+}
+
 function hiddenCount(snapshot: Snapshot) {
   return snapshot.tasks.filter((task) => !task.session.internal && isHidden(task)).length;
 }
@@ -2962,13 +2987,11 @@ function statusClass(status: Status) {
 }
 
 function relativeAge(raw?: string) {
-  if (!raw) {
+  const date = validDate(raw);
+  if (!date) {
     return "unknown";
   }
-  const ms = Date.now() - new Date(raw).getTime();
-  if (!Number.isFinite(ms)) {
-    return "unknown";
-  }
+  const ms = Date.now() - date.getTime();
   if (ms < 60_000) {
     return `${Math.max(0, Math.round(ms / 1000))}s ago`;
   }
@@ -2979,14 +3002,34 @@ function relativeAge(raw?: string) {
 }
 
 function timeOnly(raw?: string) {
-  if (!raw) {
-    return "--:--:--";
-  }
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) {
+  const date = validDate(raw);
+  if (!date) {
     return "--:--:--";
   }
   return date.toLocaleTimeString([], { hour12: false });
+}
+
+function validRecentDate(raw: string | undefined, maxAgeMs: number) {
+  const date = validDate(raw);
+  if (!date) {
+    return null;
+  }
+  const age = Date.now() - date.getTime();
+  if (age < -30_000 || age > maxAgeMs) {
+    return null;
+  }
+  return date;
+}
+
+function validDate(raw?: string) {
+  if (!raw) {
+    return null;
+  }
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime()) || date.getFullYear() < 2020) {
+    return null;
+  }
+  return date;
 }
 
 function traceStatusClass(status: TraceStatus) {

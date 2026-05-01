@@ -73,6 +73,53 @@ func TestNotificationMessageIncludesUnboundHint(t *testing.T) {
 	}
 }
 
+func TestShouldPlayInputSoundForWaiting(t *testing.T) {
+	task := notificationTask(app.StatusWaiting)
+
+	if !ShouldPlayInputSound(task, "waiting") {
+		t.Fatal("expected waiting task to play input sound")
+	}
+}
+
+func TestShouldPlayInputSoundForDecisionAttention(t *testing.T) {
+	task := notificationTask(app.StatusNeedsAttention)
+	task.AttentionReason = "agent is asking for a decision"
+	task.StatusExplain = app.StatusExplanation{
+		Reason: "agent is asking for a decision",
+		Rule:   "attention_pattern",
+	}
+
+	if !ShouldPlayInputSound(task, "attention") {
+		t.Fatal("expected decision attention to play input sound")
+	}
+}
+
+func TestShouldPlayInputSoundSkipsNonInteractiveAttention(t *testing.T) {
+	task := notificationTask(app.StatusNeedsAttention)
+	task.AttentionReason = "tests failed"
+	task.StatusExplain = app.StatusExplanation{
+		Reason: "tests failed",
+		Rule:   "attention_pattern",
+	}
+
+	if ShouldPlayInputSound(task, "attention") {
+		t.Fatal("expected non-interactive attention to skip input sound")
+	}
+}
+
+func TestShouldPlayInputSoundForPermissionBlocked(t *testing.T) {
+	task := notificationTask(app.StatusBlocked)
+	task.AttentionReason = "permission or approval needed"
+	task.StatusExplain = app.StatusExplanation{
+		Reason:       "permission or approval needed",
+		RuleSeverity: "blocked",
+	}
+
+	if !ShouldPlayInputSound(task, "blocked") {
+		t.Fatal("expected permission blocked state to play input sound")
+	}
+}
+
 func notificationTask(status app.Status) app.Task {
 	return app.Task{
 		ID: "codex:test",

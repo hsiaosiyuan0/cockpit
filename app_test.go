@@ -1,6 +1,12 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	"cockpit/internal/app"
+	"cockpit/internal/config"
+)
 
 func TestNotificationPaneID(t *testing.T) {
 	tests := []struct {
@@ -50,5 +56,82 @@ func TestNotificationTaskID(t *testing.T) {
 				t.Fatalf("taskID = %q, want %q", got, test.want)
 			}
 		})
+	}
+}
+
+func TestInputSoundEnabledIndependentFromAttentionNotificationToggle(t *testing.T) {
+	task := app.Task{
+		Status:          app.StatusWaiting,
+		StatusExplain:   app.StatusExplanation{Reason: "agent appears to be waiting for user input"},
+		AttentionReason: "agent appears to be waiting for user input",
+	}
+	cfg := config.Config{
+		NotifyAttention:  false,
+		NotifyInputSound: true,
+		NotificationMode: "normal",
+	}
+
+	if !inputSoundEnabled(cfg, task, "waiting") {
+		t.Fatal("expected input sound to be independent from text notification toggle")
+	}
+}
+
+func TestInputSoundDisabledInSilentMode(t *testing.T) {
+	task := app.Task{
+		Status:        app.StatusWaiting,
+		StatusExplain: app.StatusExplanation{Reason: "agent appears to be waiting for user input"},
+	}
+	cfg := config.Config{
+		NotifyInputSound: true,
+		NotificationMode: "silent",
+	}
+
+	if inputSoundEnabled(cfg, task, "waiting") {
+		t.Fatal("expected silent mode to disable input sound")
+	}
+}
+
+func TestApplyInputAlertsAnnotatesRecentTask(t *testing.T) {
+	createdAt := time.Now()
+	task := app.Task{
+		ID:     "codex:test",
+		Status: app.StatusWaiting,
+	}
+	cockpit := &App{
+		inputAlerts: map[string]inputAlert{
+			task.ID: {At: createdAt, Reason: "agent appears to be waiting for user input"},
+		},
+	}
+	tasks := []app.Task{task}
+
+	cockpit.applyInputAlerts(tasks)
+
+	if tasks[0].InputAlertAt == nil || tasks[0].InputAlertAt.IsZero() {
+		t.Fatal("expected input alert timestamp")
+	}
+	if tasks[0].InputAlertReason == "" {
+		t.Fatal("expected input alert reason")
+	}
+}
+
+func TestApplyInputAlertsPrunesResolvedTask(t *testing.T) {
+	task := app.Task{
+		ID:     "codex:test",
+		Status: app.StatusIdle,
+	}
+	cockpit := &App{
+		inputAlerts: map[string]inputAlert{
+			task.ID: {At: time.Now(), Reason: "agent appears to be waiting for user input"},
+		},
+	}
+	tasks := []app.Task{task}
+
+	cockpit.applyInputAlerts(tasks)
+
+	if tasks[0].InputAlertAt != nil {
+		t.Fatal("expected resolved task to remain unannotated")
+	}
+	if len(cockpit.inputAlerts) != 0 {
+		t.Fatal("expected resolved task alert to be pruned")
 	}
 }

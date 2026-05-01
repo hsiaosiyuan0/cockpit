@@ -37,10 +37,18 @@ type App struct {
 	share                  *readonlyServer
 	seenStatuses           map[string]cockpitapp.Status
 	seenNotificationStates map[string]string
+	inputAlerts            map[string]inputAlert
 	lastSnapshotLogAt      time.Time
 	lastSnapshotSignature  string
 	notifyReady            bool
 }
+
+type inputAlert struct {
+	At     time.Time
+	Reason string
+}
+
+const inputAlertTTL = 15 * time.Minute
 
 func NewApp() *App {
 	cfg, err := config.Load()
@@ -49,6 +57,7 @@ func NewApp() *App {
 			initErr:                err,
 			seenStatuses:           map[string]cockpitapp.Status{},
 			seenNotificationStates: map[string]string{},
+			inputAlerts:            map[string]inputAlert{},
 		}
 	}
 	logger, logErr := applog.New(cfg.StateDir)
@@ -68,6 +77,7 @@ func NewApp() *App {
 		initErr:                err,
 		seenStatuses:           map[string]cockpitapp.Status{},
 		seenNotificationStates: map[string]string{},
+		inputAlerts:            map[string]inputAlert{},
 	}
 }
 
@@ -92,6 +102,7 @@ func (a *App) GetSnapshot() (cockpitapp.Snapshot, error) {
 	}
 	a.logSnapshotOutcome("app", snap, nil)
 	a.notifyTransitions(ctx, snap.Tasks)
+	a.applyInputAlerts(snap.Tasks)
 	return snap, nil
 }
 
@@ -485,27 +496,94 @@ func startupPathLog(pathValue string) string {
 
 func (a *App) notifyTransitions(ctx context.Context, tasks []cockpitapp.Task) {
 	type transition struct {
-		task  cockpitapp.Task
-		state string
+		task             cockpitapp.Task
+		state            string
+		sendNotification bool
+		playSound        bool
 	}
 	var transitions []transition
 	a.mu.Lock()
+	cfg := a.cfg
+	now := time.Now()
+	a.pruneInputAlertsLocked(now, tasks)
 	for _, task := range tasks {
 		if task.Session.Internal || task.Archived || task.Ignored {
 			continue
 		}
-		state := notify.NotificationState(task, a.cfg.StuckAfter)
+		state := notify.NotificationState(task, cfg.StuckAfter)
 		previous, seen := a.seenNotificationStates[task.ID]
-		if seen && state != "" && state != previous && notificationEnabled(a.cfg, state) {
-			transitions = append(transitions, transition{task: task, state: state})
+		sendNotification := notificationEnabled(cfg, state)
+		playSound := inputSoundEnabled(cfg, task, state)
+		if seen && state != "" && state != previous && (sendNotification || playSound) {
+			transitions = append(transitions, transition{task: task, state: state, sendNotification: sendNotification, playSound: playSound})
+			if playSound {
+				if a.inputAlerts == nil {
+					a.inputAlerts = map[string]inputAlert{}
+				}
+				a.inputAlerts[task.ID] = inputAlert{
+					At:     now,
+					Reason: inputAlertReason(task),
+				}
+			}
 		}
 		a.seenStatuses[task.ID] = task.Status
 		a.seenNotificationStates[task.ID] = state
 	}
 	a.mu.Unlock()
 	for _, transition := range transitions {
-		a.notifyTaskTransition(ctx, transition.task, transition.state)
+		a.notifyTaskTransition(ctx, transition.task, transition.state, transition.playSound, transition.sendNotification)
 	}
+}
+
+func (a *App) applyInputAlerts(tasks []cockpitapp.Task) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.inputAlerts) == 0 {
+		return
+	}
+	now := time.Now()
+	a.pruneInputAlertsLocked(now, tasks)
+	for index := range tasks {
+		alert, ok := a.inputAlerts[tasks[index].ID]
+		if !ok {
+			continue
+		}
+		alertAt := alert.At
+		tasks[index].InputAlertAt = &alertAt
+		tasks[index].InputAlertReason = alert.Reason
+	}
+}
+
+func (a *App) pruneInputAlertsLocked(now time.Time, tasks []cockpitapp.Task) {
+	if len(a.inputAlerts) == 0 {
+		return
+	}
+	active := map[string]bool{}
+	for _, task := range tasks {
+		if task.Session.Internal || task.Archived || task.Ignored || !inputAlertStatus(task.Status) {
+			continue
+		}
+		active[task.ID] = true
+	}
+	for taskID, alert := range a.inputAlerts {
+		if !active[taskID] || (!alert.At.IsZero() && now.Sub(alert.At) > inputAlertTTL) {
+			delete(a.inputAlerts, taskID)
+		}
+	}
+}
+
+func inputAlertStatus(status cockpitapp.Status) bool {
+	return status == cockpitapp.StatusWaiting || status == cockpitapp.StatusNeedsAttention || status == cockpitapp.StatusBlocked
+}
+
+func inputAlertReason(task cockpitapp.Task) string {
+	if task.AttentionReason != "" {
+		return task.AttentionReason
+	}
+	if task.StatusExplain.Reason != "" {
+		return task.StatusExplain.Reason
+	}
+	return "waiting for user input"
 }
 
 func notificationEnabled(cfg config.Config, state string) bool {
@@ -528,6 +606,13 @@ func notificationEnabled(cfg config.Config, state string) bool {
 	default:
 		return false
 	}
+}
+
+func inputSoundEnabled(cfg config.Config, task cockpitapp.Task, state string) bool {
+	if cfg.NotificationMode == "silent" {
+		return false
+	}
+	return cfg.NotifyInputSound && notify.ShouldPlayInputSound(task, state)
 }
 
 func quietHoursActive(quiet config.QuietHours, now time.Time) bool {
@@ -591,7 +676,13 @@ func (a *App) setupNotifications(ctx context.Context) {
 	a.mu.Unlock()
 }
 
-func (a *App) notifyTaskTransition(ctx context.Context, task cockpitapp.Task, state string) {
+func (a *App) notifyTaskTransition(ctx context.Context, task cockpitapp.Task, state string, playSound bool, sendNotification bool) {
+	if playSound {
+		a.playInputSound()
+	}
+	if !sendNotification {
+		return
+	}
 	message, ok := notify.BuildStateMessage(task, state)
 	if !ok {
 		return
@@ -600,6 +691,16 @@ func (a *App) notifyTaskTransition(ctx context.Context, task cockpitapp.Task, st
 		return
 	}
 	_ = notify.SendAppleScript(ctx, message)
+}
+
+func (a *App) playInputSound() {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		defer cancel()
+		if err := notify.PlayInputSound(ctx); err != nil {
+			a.logf("input sound failed err=%v", err)
+		}
+	}()
 }
 
 func (a *App) sendNativeNotification(message notify.Message) bool {

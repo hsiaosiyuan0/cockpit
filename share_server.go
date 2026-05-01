@@ -140,6 +140,7 @@ func (a *App) readonlySnapshotHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.logSnapshotOutcome("readonly", snap, nil)
+	a.applyInputAlerts(snap.Tasks)
 	writeReadonlyJSON(w, snap)
 }
 
