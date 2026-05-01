@@ -85,7 +85,14 @@ jobs:
         run: go test ./...
 
       - name: Build app
-        run: wails build -platform darwin/arm64 -clean -trimpath
+        run: |
+          VERSION="$GITHUB_REF_NAME"
+          if [[ "$VERSION" != v* ]]; then
+            VERSION="dev-${GITHUB_SHA::7}"
+          fi
+          BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          wails build -platform darwin/arm64 -clean -trimpath \
+            -ldflags "-X cockpit/internal/version.Version=$VERSION -X cockpit/internal/version.Commit=${GITHUB_SHA::7} -X cockpit/internal/version.BuildTime=$BUILD_TIME"
 
       - name: Package artifact
         run: |

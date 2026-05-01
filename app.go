@@ -18,6 +18,7 @@ import (
 	"cockpit/internal/execpath"
 	"cockpit/internal/notify"
 	"cockpit/internal/summary"
+	"cockpit/internal/version"
 	"cockpit/internal/wezterm"
 
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -332,10 +333,35 @@ func (a *App) logSnapshotOutcome(source string, snap cockpitapp.Snapshot, err er
 }
 
 func logStartup(logger *applog.Logger, cfg config.Config) {
-	logger.Printf("cockpit starting pid=%d go=%s/%s path=%s", os.Getpid(), goruntime.GOOS, goruntime.GOARCH, os.Getenv("PATH"))
+	logger.Printf("cockpit starting version=%s commit=%s build_time=%s pid=%d go=%s/%s debug=%t", version.Version, version.Commit, version.BuildTime, os.Getpid(), goruntime.GOOS, goruntime.GOARCH, debugLoggingEnabled())
+	logger.Printf("path %s", startupPathLog(os.Getenv("PATH")))
 	logger.Printf("state_dir=%s settings_path=%s internal_run_dir=%s", cfg.StateDir, cfg.SettingsPath, cfg.InternalRunDir)
 	logger.Printf("homes codex=%s claude=%s", cfg.CodexHome, cfg.ClaudeHome)
 	logger.Printf("bins codex=%s resolved_codex=%s wezterm=%s resolved_wezterm=%s", cfg.CodexBin, execpath.Resolve(cfg.CodexBin), cfg.WeztermBin, execpath.Resolve(cfg.WeztermBin))
+}
+
+func debugLoggingEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("COCKPIT_DEBUG"))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func startupPathLog(pathValue string) string {
+	if debugLoggingEnabled() {
+		return "full=" + pathValue
+	}
+	if pathValue == "" {
+		return "entries=0"
+	}
+	entries := strings.Split(pathValue, ":")
+	shown := entries
+	if len(shown) > 6 {
+		shown = shown[:6]
+	}
+	return fmt.Sprintf("entries=%d sample=%s", len(entries), strings.Join(shown, ":"))
 }
 
 func (a *App) notifyTransitions(ctx context.Context, tasks []cockpitapp.Task) {
