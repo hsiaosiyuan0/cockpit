@@ -30,10 +30,16 @@ export function OpenPane(arg1:number):Promise<void>;
 
 export function RefreshSummary(arg1:string):Promise<app.Task>;
 
+export function RenameMission(arg1:string,arg2:string):Promise<app.Snapshot>;
+
+export function ReportFrontendError(arg1:string,arg2:string):Promise<void>;
+
 export function RestoreTask(arg1:string):Promise<app.Snapshot>;
 
 export function ReviewDoneItem(arg1:string):Promise<app.Snapshot>;
 
 export function SaveSettings(arg1:config.Settings):Promise<config.Settings>;
+
+export function SearchPrompts(arg1:string):Promise<Array<app.PromptSearchResult>>;
 
 export function StartReadonlyServer():Promise<main.ShareServerInfo>;

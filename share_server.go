@@ -76,6 +76,7 @@ func (a *App) StartReadonlyServer() (ShareServerInfo, error) {
 	}))
 	mux.HandleFunc("/api/snapshot", a.readonlySnapshotHandler)
 	mux.HandleFunc("/api/settings", a.readonlySettingsHandler)
+	mux.HandleFunc("/api/prompts/search", a.readonlyPromptSearchHandler)
 	mux.Handle("/", readonlyStaticHandler(dist))
 
 	server := &http.Server{
@@ -151,6 +152,24 @@ func (a *App) readonlySettingsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeReadonlyJSON(w, a.currentConfig().Settings())
+}
+
+func (a *App) readonlyPromptSearchHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireReadonlyMethod(w, r, "GET") {
+		return
+	}
+	if err := a.ready(); err != nil {
+		writeReadonlyError(w, http.StatusInternalServerError, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	results, err := a.searchPromptResults(ctx, r.URL.Query().Get("q"))
+	if err != nil {
+		writeReadonlyError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeReadonlyJSON(w, results)
 }
 
 func readonlyStaticHandler(dist fs.FS) http.HandlerFunc {

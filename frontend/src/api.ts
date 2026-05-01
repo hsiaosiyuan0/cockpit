@@ -1,5 +1,5 @@
 import { mockSnapshot } from "./mock";
-import type { Settings, ShareServerInfo, Snapshot, Task } from "./types";
+import type { PromptSearchResult, Settings, ShareServerInfo, Snapshot, Task } from "./types";
 
 const api = () => window.go?.main?.App;
 
@@ -218,6 +218,52 @@ export async function detachTask(taskID: string): Promise<Snapshot> {
   return native.DetachTask(taskID);
 }
 
+export async function renameMission(missionID: string, name: string): Promise<Snapshot> {
+  const native = api();
+  if (!native) {
+    await requireWritable();
+    const snap = mockSnapshot();
+    snap.missions = (snap.missions ?? []).map((mission) =>
+      mission.id === missionID
+        ? {
+            ...mission,
+            name: name.trim() || mission.default_name || mission.name,
+            renamed: Boolean(name.trim()),
+          }
+        : mission,
+    );
+    return snap;
+  }
+  return native.RenameMission(missionID, name);
+}
+
+export async function searchPrompts(query: string): Promise<PromptSearchResult[]> {
+  const native = api();
+  if (native) {
+    const results = await native.SearchPrompts(query);
+    return Array.isArray(results) ? results : [];
+  }
+  if ((await getRuntimeInfo()).readonly) {
+    const params = new URLSearchParams({ q: query });
+    const results = await fetchReadonly<PromptSearchResult[] | null>(`/api/prompts/search?${params.toString()}`, "prompt search failed");
+    return Array.isArray(results) ? results : [];
+  }
+  return searchMockPrompts(mockSnapshot(), query);
+}
+
+export async function reportFrontendError(message: string, stack = ""): Promise<void> {
+  const native = api();
+  if (!native?.ReportFrontendError) {
+    console.error("Cockpit frontend error", message, stack);
+    return;
+  }
+  try {
+    await native.ReportFrontendError(message, stack);
+  } catch (error) {
+    console.error("Cockpit frontend error logging failed", error);
+  }
+}
+
 export async function refreshSummary(taskID: string): Promise<Task> {
   const native = api();
   if (!native) {
@@ -300,4 +346,44 @@ async function readonlyError(response: Response, fallback: string) {
 
 function useBrowserMock() {
   return import.meta.env.DEV || window.location.protocol === "file:";
+}
+
+function searchMockPrompts(snapshot: Snapshot, query: string): PromptSearchResult[] {
+  const cleanQuery = query.trim().toLowerCase();
+  const taskMission = new Map<string, NonNullable<Snapshot["missions"]>[number]>();
+  for (const mission of snapshot.missions ?? []) {
+    for (const taskID of mission.task_ids) {
+      taskMission.set(taskID, mission);
+    }
+  }
+  return snapshot.tasks
+    .flatMap((task) => {
+      const mission = taskMission.get(task.id);
+      return (task.session.events ?? [])
+        .filter((event) => event.type === "user" && event.text.trim())
+        .map((event, index) => {
+          const prompt = event.text.trim();
+          const text = prompt.toLowerCase();
+          const exact = cleanQuery && text.includes(cleanQuery) ? 8 : 0;
+          const tokens = cleanQuery.split(/\s+/).filter(Boolean);
+          const matched = tokens.filter((token) => text.includes(token)).length;
+          return {
+            id: `${task.id}:${event.at ?? index}:${index}`,
+            agent: task.session.agent,
+            session_id: task.session.id,
+            task_id: task.id,
+            mission_id: mission?.id,
+            mission_name: mission?.name,
+            cwd: task.session.cwd,
+            prompt,
+            at: event.at,
+            score: cleanQuery ? exact + matched * 2 : 1,
+            mode: "keyword" as const,
+            summary: task.summary,
+          };
+        });
+    })
+    .filter((result) => !cleanQuery || result.score > 0)
+    .sort((a, b) => b.score - a.score || String(b.at ?? "").localeCompare(String(a.at ?? "")))
+    .slice(0, 40);
 }

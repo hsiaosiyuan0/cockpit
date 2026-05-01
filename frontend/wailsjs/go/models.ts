@@ -287,6 +287,8 @@ export namespace app {
 	export class Mission {
 	    id: string;
 	    name: string;
+	    default_name?: string;
+	    renamed?: boolean;
 	    cwd?: string;
 	    repo_root?: string;
 	    status: string;
@@ -309,6 +311,8 @@ export namespace app {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.default_name = source["default_name"];
+	        this.renamed = source["renamed"];
 	        this.cwd = source["cwd"];
 	        this.repo_root = source["repo_root"];
 	        this.status = source["status"];
@@ -326,6 +330,40 @@ export namespace app {
 	}
 	
 	
+	export class PromptSearchResult {
+	    id: string;
+	    agent: string;
+	    session_id: string;
+	    task_id: string;
+	    mission_id?: string;
+	    mission_name?: string;
+	    cwd?: string;
+	    prompt: string;
+	    at?: string;
+	    score: number;
+	    mode: string;
+	    summary?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PromptSearchResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.agent = source["agent"];
+	        this.session_id = source["session_id"];
+	        this.task_id = source["task_id"];
+	        this.mission_id = source["mission_id"];
+	        this.mission_name = source["mission_name"];
+	        this.cwd = source["cwd"];
+	        this.prompt = source["prompt"];
+	        this.at = source["at"];
+	        this.score = source["score"];
+	        this.mode = source["mode"];
+	        this.summary = source["summary"];
+	    }
+	}
 	export class TraceSpan {
 	    id: string;
 	    parent_id?: string;
@@ -710,16 +748,16 @@ export namespace config {
 }
 
 export namespace main {
-
+	
 	export class ShareServerInfo {
 	    url: string;
 	    listen_addr: string;
 	    readonly: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ShareServerInfo(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.url = source["url"];
@@ -729,3 +767,4 @@ export namespace main {
 	}
 
 }
+

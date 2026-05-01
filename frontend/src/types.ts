@@ -108,6 +108,21 @@ export interface Debrief {
   raw?: string;
 }
 
+export interface PromptSearchResult {
+  id: string;
+  agent: Agent;
+  session_id: string;
+  task_id: string;
+  mission_id?: string;
+  mission_name?: string;
+  cwd?: string;
+  prompt: string;
+  at?: string;
+  score: number;
+  mode: "keyword";
+  summary?: string;
+}
+
 export interface Session {
   id: string;
   agent: Agent;
@@ -189,6 +204,8 @@ export interface DoneInboxItem {
 export interface Mission {
   id: string;
   name: string;
+  default_name?: string;
+  renamed?: boolean;
   cwd?: string;
   repo_root?: string;
   status: Status;
@@ -262,6 +279,9 @@ export interface CockpitAPI {
   RestoreTask(taskID: string): Promise<Snapshot>;
   AttachTask(taskID: string, paneID: number): Promise<Snapshot>;
   DetachTask(taskID: string): Promise<Snapshot>;
+  RenameMission(missionID: string, name: string): Promise<Snapshot>;
+  SearchPrompts(query: string): Promise<PromptSearchResult[]>;
+  ReportFrontendError(message: string, stack: string): Promise<void>;
   RefreshSummary(taskID: string): Promise<Task>;
   GenerateDebrief(taskID: string): Promise<Task>;
   ReviewDoneItem(itemID: string): Promise<Snapshot>;

@@ -54,6 +54,14 @@ export function RefreshSummary(arg1) {
   return window['go']['main']['App']['RefreshSummary'](arg1);
 }
 
+export function RenameMission(arg1, arg2) {
+  return window['go']['main']['App']['RenameMission'](arg1, arg2);
+}
+
+export function ReportFrontendError(arg1, arg2) {
+  return window['go']['main']['App']['ReportFrontendError'](arg1, arg2);
+}
+
 export function RestoreTask(arg1) {
   return window['go']['main']['App']['RestoreTask'](arg1);
 }
@@ -64,6 +72,10 @@ export function ReviewDoneItem(arg1) {
 
 export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
+}
+
+export function SearchPrompts(arg1) {
+  return window['go']['main']['App']['SearchPrompts'](arg1);
 }
 
 export function StartReadonlyServer() {

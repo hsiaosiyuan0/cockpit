@@ -16,8 +16,10 @@ import (
 
 	"cockpit/internal/app"
 	"cockpit/internal/config"
+	"cockpit/internal/discovery"
 	"cockpit/internal/engine"
 	"cockpit/internal/execpath"
+	"cockpit/internal/promptsearch"
 	"cockpit/internal/summary"
 	"cockpit/internal/wezterm"
 )
@@ -50,6 +52,8 @@ func run(args []string) error {
 		return runAttach(cfg, args[1:])
 	case "open":
 		return runOpen(cfg, args[1:])
+	case "prompts":
+		return runPrompts(cfg, args[1:])
 	case "help", "-h", "--help":
 		printUsage()
 		return nil
@@ -69,7 +73,106 @@ Usage:
   cockpit summarize ID    force LLM summary for one task/session id
   cockpit attach [ID]     bind a task/session to the current WezTerm pane
   cockpit open PANE_ID    activate a WezTerm pane
+  cockpit prompts index   rebuild the local prompt search index
+  cockpit prompts search  search indexed prompts
 `)
+}
+
+func runPrompts(cfg config.Config, args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: cockpit prompts index|search")
+	}
+	switch args[0] {
+	case "index":
+		return runPromptIndex(cfg)
+	case "search":
+		return runPromptSearch(cfg, args[1:])
+	default:
+		return fmt.Errorf("unknown prompts command %q", args[0])
+	}
+}
+
+func runPromptIndex(cfg config.Config) error {
+	return runPromptIndexWithOutput(cfg, true)
+}
+
+func runPromptIndexWithOutput(cfg config.Config, printResult bool) error {
+	store, err := app.NewStore(cfg)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	snap, err := buildPromptSnapshot(ctx, cfg, store)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cockpit: prompt discovery warning: %v\n", err)
+	}
+	index, err := promptsearch.Open(promptsearch.DBPath(cfg.StateDir))
+	if err != nil {
+		return err
+	}
+	defer index.Close()
+	synced, err := index.Sync(snap, promptsearch.Retention)
+	if err != nil {
+		return err
+	}
+	if printResult {
+		fmt.Printf("indexed %d prompts into %s; retention %s\n", synced, promptsearch.DBPath(cfg.StateDir), promptsearch.Retention)
+	}
+	return nil
+}
+
+func runPromptSearch(cfg config.Config, args []string) error {
+	fs := flag.NewFlagSet("prompts search", flag.ContinueOnError)
+	limit := fs.Int("limit", 20, "max results")
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	query := strings.TrimSpace(strings.Join(fs.Args(), " "))
+	if query == "" {
+		return errors.New("usage: cockpit prompts search [--limit N] QUERY")
+	}
+	if err := runPromptIndexWithOutput(cfg, false); err != nil {
+		return err
+	}
+	index, err := promptsearch.Open(promptsearch.DBPath(cfg.StateDir))
+	if err != nil {
+		return err
+	}
+	defer index.Close()
+	results, err := index.Search(query, *limit)
+	if err != nil {
+		return err
+	}
+	for _, result := range results {
+		fmt.Printf("%s %-6s %-18s %.2f %s\n", timeOnly(result.At), result.Agent, result.MissionName, result.Score, result.Prompt)
+	}
+	return nil
+}
+
+func buildPromptSnapshot(ctx context.Context, cfg config.Config, store *app.Store) (app.Snapshot, error) {
+	if cfg.RecentWindow < promptsearch.Retention {
+		cfg.RecentWindow = promptsearch.Retention
+	}
+	if cfg.MaxSessions < 1000 {
+		cfg.MaxSessions = 1000
+	}
+	sessions, err := discovery.DiscoverPromptSessions(ctx, cfg)
+	userState := store.LoadUserState()
+	tasks := make([]app.Task, 0, len(sessions))
+	for _, session := range sessions {
+		taskID := app.TaskID(session)
+		tasks = append(tasks, app.Task{
+			ID:       taskID,
+			Session:  session,
+			Archived: userState.Archived[taskID],
+			Ignored:  userState.Ignored[taskID],
+		})
+	}
+	return app.Snapshot{BuiltAt: time.Now(), Tasks: tasks}, err
 }
 
 func runInspect(cfg config.Config, args []string) error {
@@ -148,6 +251,13 @@ func printTasks(tasks []app.Task) {
 			fmt.Printf("  cwd: %s\n", task.Session.CWD)
 		}
 	}
+}
+
+func timeOnly(value time.Time) string {
+	if value.IsZero() {
+		return "--:--:--"
+	}
+	return value.Format("15:04:05")
 }
 
 func hasReason(reasons []string, reason string) bool {

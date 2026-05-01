@@ -19,6 +19,7 @@ type userState struct {
 	Ignored        map[string]bool   `json:"ignored"`
 	Statuses       map[string]Status `json:"statuses,omitempty"`
 	ManualBindings map[string]int    `json:"manual_bindings,omitempty"`
+	MissionNames   map[string]string `json:"mission_names,omitempty"`
 }
 
 type SummaryCache struct {
@@ -49,6 +50,7 @@ func (s *Store) LoadUserState() userState {
 		Ignored:        map[string]bool{},
 		Statuses:       map[string]Status{},
 		ManualBindings: map[string]int{},
+		MissionNames:   map[string]string{},
 	}
 	data, err := os.ReadFile(s.userStatePath())
 	if err != nil {
@@ -66,6 +68,9 @@ func (s *Store) LoadUserState() userState {
 	}
 	if state.ManualBindings == nil {
 		state.ManualBindings = map[string]int{}
+	}
+	if state.MissionNames == nil {
+		state.MissionNames = map[string]string{}
 	}
 	return state
 }
@@ -101,6 +106,21 @@ func (s *Store) SetManualBinding(taskID string, paneID int) error {
 func (s *Store) ClearManualBinding(taskID string) error {
 	state := s.LoadUserState()
 	delete(state.ManualBindings, taskID)
+	return s.saveUserState(state)
+}
+
+func (s *Store) SetMissionName(missionID string, name string) error {
+	state := s.LoadUserState()
+	missionID = strings.TrimSpace(missionID)
+	name = strings.TrimSpace(name)
+	if missionID == "" {
+		return nil
+	}
+	if name == "" {
+		delete(state.MissionNames, missionID)
+	} else {
+		state.MissionNames[missionID] = name
+	}
 	return s.saveUserState(state)
 }
 

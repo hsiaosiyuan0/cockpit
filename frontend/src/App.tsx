@@ -1,11 +1,14 @@
 import {
   Archive,
   BellRing,
+  Check,
   CheckCircle2,
   CircleDot,
   ClipboardCheck,
   Command,
+  Copy,
   Database,
+  Pencil,
   Eye,
   EyeOff,
   FileText,
@@ -44,9 +47,12 @@ import {
   initialRuntimeInfo,
   openPane,
   refreshSummary,
+  renameMission,
+  reportFrontendError,
   reviewDoneItem,
   restoreTask,
   saveSettings,
+  searchPrompts,
   startReadonlyServer,
 } from "./api";
 import type { RuntimeInfo } from "./api";
@@ -58,6 +64,7 @@ import type {
   FlightEvent,
   Mission,
   Pane,
+  PromptSearchResult,
   Settings as CockpitSettings,
   Snapshot,
   Status,
@@ -128,6 +135,7 @@ function App() {
   const [boardMode, setBoardMode] = useState<BoardMode>("sessions");
   const [inboxOpen, setInboxOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [promptSearchOpen, setPromptSearchOpen] = useState(false);
   const [ambientOpen, setAmbientOpen] = useState(false);
   const [launchingID, setLaunchingID] = useState("");
   const [splitPercent, setSplitPercent] = useState(() => {
@@ -251,6 +259,10 @@ function App() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setCommandOpen(true);
+      }
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        setPromptSearchOpen(true);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -436,6 +448,19 @@ function App() {
     }
   };
 
+  const handleRenameMission = async (missionID: string, name: string) => {
+    if (readonly) {
+      blockReadonlyAction();
+      return;
+    }
+    try {
+      replaceSnapshot(await renameMission(missionID, name));
+      setMessage(name.trim() ? "mission renamed" : "mission name reset");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "mission rename failed");
+    }
+  };
+
   const handleSummary = async (task: Task | undefined) => {
     if (readonly) {
       blockReadonlyAction();
@@ -597,6 +622,9 @@ function App() {
           <button className="icon-button" type="button" title="Command palette" onClick={() => setCommandOpen(true)}>
             <Command size={16} />
           </button>
+          <button className="icon-button" type="button" title="Search past prompts" onClick={() => setPromptSearchOpen(true)}>
+            <Search size={16} />
+          </button>
           <button className={`icon-button ${ambientOpen ? "active" : ""}`} type="button" title="Ambient mode" onClick={() => setAmbientOpen(true)}>
             <Sparkles size={16} />
           </button>
@@ -682,7 +710,14 @@ function App() {
           </div>
 
           {boardMode === "missions" ? (
-            <MissionBoard missions={snapshot?.missions ?? []} tasks={tasks} selectedID={selected?.id ?? ""} onSelectTask={selectTaskID} />
+            <MissionBoard
+              missions={snapshot?.missions ?? []}
+              tasks={tasks}
+              selectedID={selected?.id ?? ""}
+              readonly={readonly}
+              onSelectTask={selectTaskID}
+              onRenameMission={(missionID, name) => void handleRenameMission(missionID, name)}
+            />
           ) : lanes.map((lane) => {
             const laneTasks = tasks.filter((task) => task.status === lane.status);
             if (laneTasks.length === 0) {
@@ -836,12 +871,22 @@ function App() {
           }}
         />
       ) : null}
+      {promptSearchOpen ? (
+        <PromptSearchPanel
+          onClose={() => setPromptSearchOpen(false)}
+          onSelectTask={(taskID) => {
+            selectTaskID(taskID);
+            setPromptSearchOpen(false);
+          }}
+        />
+      ) : null}
       {ambientOpen ? (
         <AmbientMode
           tasks={tasks}
           missions={snapshot?.missions ?? []}
           stats={stats}
           clock={clock}
+          nativeRuntime={nativeRuntime}
           onClose={() => setAmbientOpen(false)}
           onSelectTask={(taskID) => {
             selectTaskID(taskID);
@@ -1110,13 +1155,19 @@ function MissionBoard({
   missions,
   tasks,
   selectedID,
+  readonly,
   onSelectTask,
+  onRenameMission,
 }: {
   missions: Mission[];
   tasks: Task[];
   selectedID: string;
+  readonly: boolean;
   onSelectTask: (taskID: string) => void;
+  onRenameMission: (missionID: string, name: string) => void;
 }) {
+  const [editingID, setEditingID] = useState("");
+  const [draftName, setDraftName] = useState("");
   if (missions.length === 0) {
     return (
       <div className="empty-state">
@@ -1131,16 +1182,70 @@ function MissionBoard({
       {missions.map((mission) => {
         const missionTasks = mission.task_ids.map((id) => taskByID.get(id)).filter((task): task is Task => Boolean(task));
         const selected = mission.task_ids.includes(selectedID);
+        const editing = editingID === mission.id;
         return (
           <div className={`mission-card ${selected ? "selected" : ""}`} key={mission.id}>
-            <button className="mission-main" type="button" onClick={() => onSelectTask(mission.task_ids[0] ?? "")}>
-              <span className={`status-pill ${statusClass(mission.status)}`}>{statusLabel[mission.status]}</span>
-              <div>
-                <strong>{mission.name}</strong>
-                <span>{mission.summary || mission.cwd || "mission group"}</span>
-              </div>
-              <em>{mission.changed_files} files</em>
-            </button>
+            <div className="mission-main-row">
+              <button className="mission-main" type="button" onClick={() => onSelectTask(mission.task_ids[0] ?? "")}>
+                <span className={`status-pill ${statusClass(mission.status)}`}>{statusLabel[mission.status]}</span>
+                <div>
+                  <strong>{mission.name}</strong>
+                  <span>{mission.summary || mission.cwd || "mission group"}</span>
+                </div>
+                <em>{mission.changed_files} files</em>
+              </button>
+              <button
+                className="mission-rename-button"
+                type="button"
+                title={readonly ? "Readonly LAN view" : "Rename mission"}
+                disabled={readonly}
+                onClick={() => {
+                  setEditingID(mission.id);
+                  setDraftName(mission.renamed ? mission.name : "");
+                }}
+              >
+                <Pencil size={13} />
+              </button>
+            </div>
+            {editing ? (
+              <form
+                className="mission-rename-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  onRenameMission(mission.id, draftName);
+                  setEditingID("");
+                }}
+              >
+                <input
+                  autoFocus
+                  value={draftName}
+                  placeholder={mission.default_name || mission.name}
+                  onChange={(event) => setDraftName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      setEditingID("");
+                    }
+                  }}
+                />
+                <button type="submit" title="Save mission name">
+                  <Check size={13} />
+                </button>
+                <button
+                  type="button"
+                  title="Reset to detected name"
+                  onClick={() => {
+                    onRenameMission(mission.id, "");
+                    setEditingID("");
+                  }}
+                >
+                  <RotateCcw size={13} />
+                </button>
+                <button type="button" title="Cancel rename" onClick={() => setEditingID("")}>
+                  <X size={13} />
+                </button>
+              </form>
+            ) : null}
             <div className="mission-stats">
               <span>tasks {mission.task_ids.length}</span>
               <span>attn {mission.attention}</span>
@@ -1638,11 +1743,122 @@ function CommandPalette({
   );
 }
 
+function PromptSearchPanel({
+  onClose,
+  onSelectTask,
+}: {
+  onClose: () => void;
+  onSelectTask: (taskID: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<PromptSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [copiedID, setCopiedID] = useState("");
+  const requestSeq = useRef(0);
+
+  const runSearch = useCallback(async (nextQuery: string) => {
+    const seq = requestSeq.current + 1;
+    requestSeq.current = seq;
+    setLoading(true);
+    setError("");
+    try {
+      const nextResults = await searchPrompts(nextQuery);
+      if (requestSeq.current === seq) {
+        setResults(Array.isArray(nextResults) ? nextResults : []);
+      }
+    } catch (searchError) {
+      if (requestSeq.current === seq) {
+        setError(searchError instanceof Error ? searchError.message : "prompt search failed");
+        setResults([]);
+      }
+    } finally {
+      if (requestSeq.current === seq) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void runSearch(query), 320);
+    return () => window.clearTimeout(timer);
+  }, [query, runSearch]);
+
+  useEffect(() => {
+    const handle = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handle);
+    return () => window.removeEventListener("keydown", handle);
+  }, [onClose]);
+
+  const copyPrompt = async (result: PromptSearchResult) => {
+    try {
+      await copyText(result.prompt);
+      setCopiedID(result.id);
+      window.setTimeout(() => setCopiedID((current) => (current === result.id ? "" : current)), 1300);
+    } catch (copyError) {
+      const message = copyError instanceof Error ? copyError.message : "copy prompt failed";
+      setError(message);
+      void reportFrontendError("prompt copy failed: " + message, copyError instanceof Error ? copyError.stack ?? "" : "");
+    }
+  };
+
+  return (
+    <div className="settings-overlay command-overlay" role="dialog" aria-modal="true" aria-label="Prompt search">
+      <div className="prompt-search-dialog">
+        <div className="prompt-search-head">
+          <div>
+            <strong>PROMPT SEARCH</strong>
+            <span>cross-session user prompts</span>
+          </div>
+          <button className="icon-button" type="button" title="Close prompt search" onClick={onClose}>
+            <X size={15} />
+          </button>
+        </div>
+        <div className="prompt-search-input">
+          <Search size={16} />
+          <input autoFocus value={query} placeholder="Search past prompts..." onChange={(event) => setQuery(event.target.value)} />
+          <span className="prompt-search-engine">FTS5</span>
+        </div>
+        <div className="prompt-search-meta">
+          <span>{loading ? "scanning logs..." : `${results.length} prompts`}</span>
+          <span>gojieba segmentation + SQLite FTS5</span>
+        </div>
+        <div className="prompt-results">
+          {error ? <div className="prompt-empty">{error}</div> : null}
+          {!error && results.length === 0 && !loading ? <div className="prompt-empty">No matching prompts yet.</div> : null}
+          {results.map((result) => (
+            <div className="prompt-result" key={result.id}>
+              <button className="prompt-copy-target" type="button" title="Copy this prompt" onClick={() => void copyPrompt(result)}>
+                <span className={`agent-dot ${result.agent}`}>{result.agent}</span>
+                <strong>{result.prompt}</strong>
+                <em>{result.summary || result.cwd || "previous user prompt"}</em>
+                <span>{result.mission_name || repoNameFromPath(result.cwd) || result.session_id.slice(0, 8)}</span>
+              </button>
+              <button className="prompt-copy-button" type="button" title="Copy prompt" onClick={() => void copyPrompt(result)}>
+                {copiedID === result.id ? <ClipboardCheck size={14} /> : <Copy size={14} />}
+              </button>
+              <button className="prompt-focus-button" type="button" title="Select source session" onClick={() => onSelectTask(result.task_id)}>
+                <Radar size={14} />
+              </button>
+              <span className="prompt-result-time">{result.at ? relativeAge(result.at) : "unknown"}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AmbientMode({
   tasks,
   missions,
   stats,
   clock,
+  nativeRuntime,
   onClose,
   onSelectTask,
 }: {
@@ -1650,12 +1866,13 @@ function AmbientMode({
   missions: Mission[];
   stats: ReturnType<typeof collectStats>;
   clock: Date;
+  nativeRuntime: boolean;
   onClose: () => void;
   onSelectTask: (taskID: string) => void;
 }) {
   const active = tasks.filter((task) => ["needs_attention", "blocked", "drift", "working", "waiting"].includes(task.status)).slice(0, 6);
   return (
-    <div className="ambient-overlay" role="dialog" aria-modal="true" aria-label="Ambient cockpit mode">
+    <div className={`ambient-overlay ${nativeRuntime ? "native-ambient" : ""}`} role="dialog" aria-modal="true" aria-label="Ambient cockpit mode">
       <div className="ambient-top">
         <div>
           <strong>COCKPIT AMBIENT</strong>
@@ -1666,27 +1883,31 @@ function AmbientMode({
         </button>
       </div>
       <div className="ambient-grid">
-        <MissionRadar missions={missions} selectedTaskID="" onSelectTask={onSelectTask} />
-        <div className="ambient-counts">
-          <Metric className="attn" label="attention" value={stats.attention} icon={<BellRing size={15} />} />
-          <Metric className="blocked" label="blocked" value={stats.blocked} icon={<ShieldAlert size={15} />} />
-          <Metric className="drift" label="drift" value={stats.drift} icon={<Radar size={15} />} />
-          <Metric className="work" label="working" value={stats.working} icon={<SatelliteDish size={15} />} />
+        <div className="ambient-radar">
+          <MissionRadar missions={missions} selectedTaskID="" onSelectTask={onSelectTask} />
         </div>
-        <div className="ambient-feed">
-          <strong>ACTIVE FLIGHT STRIPS</strong>
-          {active.length === 0 ? (
-            <span className="caution-clear">NO ACTIVE SESSIONS</span>
-          ) : (
-            active.map((task) => (
-              <button type="button" key={task.id} onClick={() => onSelectTask(task.id)}>
-                <span className={`status-pill ${statusClass(task.status)}`}>{statusLabel[task.status]}</span>
-                <strong>{callsign(task)}</strong>
-                <em>{task.summary || task.attention_reason || task.session.cwd}</em>
-                <DiffHeatStrip diff={task.diff} />
-              </button>
-            ))
-          )}
+        <div className="ambient-bottom">
+          <div className="ambient-counts">
+            <Metric className="attn" label="attention" value={stats.attention} icon={<BellRing size={15} />} />
+            <Metric className="blocked" label="blocked" value={stats.blocked} icon={<ShieldAlert size={15} />} />
+            <Metric className="drift" label="drift" value={stats.drift} icon={<Radar size={15} />} />
+            <Metric className="work" label="working" value={stats.working} icon={<SatelliteDish size={15} />} />
+          </div>
+          <div className="ambient-feed">
+            <strong>ACTIVE FLIGHT STRIPS</strong>
+            {active.length === 0 ? (
+              <span className="caution-clear">NO ACTIVE SESSIONS</span>
+            ) : (
+              active.map((task) => (
+                <button type="button" key={task.id} onClick={() => onSelectTask(task.id)}>
+                  <span className={`status-pill ${statusClass(task.status)}`}>{statusLabel[task.status]}</span>
+                  <strong>{callsign(task)}</strong>
+                  <em>{task.summary || task.attention_reason || task.session.cwd}</em>
+                  <DiffHeatStrip diff={task.diff} />
+                </button>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -2572,6 +2793,22 @@ function repoNameFromPath(path?: string) {
     return "unknown";
   }
   return cwd.split("/").pop() || cwd;
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
 }
 
 function shortID(task: Task) {

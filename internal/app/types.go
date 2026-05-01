@@ -147,6 +147,21 @@ type Debrief struct {
 	Raw         string    `json:"raw,omitempty"`
 }
 
+type PromptSearchResult struct {
+	ID          string    `json:"id"`
+	Agent       Agent     `json:"agent"`
+	SessionID   string    `json:"session_id"`
+	TaskID      string    `json:"task_id"`
+	MissionID   string    `json:"mission_id,omitempty"`
+	MissionName string    `json:"mission_name,omitempty"`
+	CWD         string    `json:"cwd,omitempty"`
+	Prompt      string    `json:"prompt"`
+	At          time.Time `json:"at,omitempty" ts_type:"string"`
+	Score       float64   `json:"score"`
+	Mode        string    `json:"mode"`
+	Summary     string    `json:"summary,omitempty"`
+}
+
 type Session struct {
 	ID             string      `json:"id"`
 	Agent          Agent       `json:"agent"`
@@ -228,6 +243,8 @@ type DoneInboxItem struct {
 type Mission struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`
+	DefaultName  string    `json:"default_name,omitempty"`
+	Renamed      bool      `json:"renamed,omitempty"`
 	CWD          string    `json:"cwd,omitempty"`
 	RepoRoot     string    `json:"repo_root,omitempty"`
 	Status       Status    `json:"status"`

@@ -14,9 +14,11 @@ import (
 	cockpitapp "cockpit/internal/app"
 	"cockpit/internal/applog"
 	"cockpit/internal/config"
+	"cockpit/internal/discovery"
 	"cockpit/internal/engine"
 	"cockpit/internal/execpath"
 	"cockpit/internal/notify"
+	"cockpit/internal/promptsearch"
 	"cockpit/internal/summary"
 	"cockpit/internal/version"
 	"cockpit/internal/wezterm"
@@ -73,6 +75,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.logf("wails startup complete")
 	go a.setupNotifications(ctx)
+	go a.warmPromptIndex()
 }
 
 func (a *App) GetSnapshot() (cockpitapp.Snapshot, error) {
@@ -189,6 +192,20 @@ func (a *App) DetachTask(taskID string) (cockpitapp.Snapshot, error) {
 	return a.GetSnapshot()
 }
 
+func (a *App) RenameMission(missionID string, name string) (cockpitapp.Snapshot, error) {
+	if err := a.ready(); err != nil {
+		return cockpitapp.Snapshot{}, err
+	}
+	if strings.TrimSpace(missionID) == "" {
+		return cockpitapp.Snapshot{}, errors.New("mission id is required")
+	}
+	if err := a.store.SetMissionName(missionID, name); err != nil {
+		return cockpitapp.Snapshot{}, err
+	}
+	a.logf("mission renamed mission=%s custom=%t", missionID, strings.TrimSpace(name) != "")
+	return a.GetSnapshot()
+}
+
 func (a *App) ReviewDoneItem(itemID string) (cockpitapp.Snapshot, error) {
 	if err := a.ready(); err != nil {
 		return cockpitapp.Snapshot{}, err
@@ -207,6 +224,99 @@ func (a *App) ArchiveDoneItem(itemID string) (cockpitapp.Snapshot, error) {
 		return cockpitapp.Snapshot{}, err
 	}
 	return a.GetSnapshot()
+}
+
+func (a *App) SearchPrompts(query string) ([]cockpitapp.PromptSearchResult, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	results, err := a.searchPromptResults(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	if results == nil {
+		results = []cockpitapp.PromptSearchResult{}
+	}
+	a.logf("prompt search query_len=%d results=%d", len([]rune(strings.TrimSpace(query))), len(results))
+	return results, nil
+}
+
+func (a *App) searchPromptResults(ctx context.Context, query string) ([]cockpitapp.PromptSearchResult, error) {
+	index, synced, err := a.syncPromptIndex(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer index.Close()
+	results, err := index.Search(query, 40)
+	if err != nil {
+		return nil, err
+	}
+	if results == nil {
+		results = []cockpitapp.PromptSearchResult{}
+	}
+	a.logf("prompt index search synced=%d results=%d", synced, len(results))
+	return results, nil
+}
+
+func (a *App) ReportFrontendError(message string, stack string) {
+	message = strings.TrimSpace(message)
+	stack = strings.TrimSpace(stack)
+	if message == "" {
+		message = "unknown frontend error"
+	}
+	a.logf("frontend error message=%q stack=%q", compactLogString(message, 500), compactLogString(stack, 2500))
+}
+
+func (a *App) syncPromptIndex(ctx context.Context) (*promptsearch.Index, int, error) {
+	cfg := a.currentConfig()
+	if cfg.RecentWindow < promptsearch.Retention {
+		cfg.RecentWindow = promptsearch.Retention
+	}
+	if cfg.MaxSessions < 1000 {
+		cfg.MaxSessions = 1000
+	}
+	sessions, err := discovery.DiscoverPromptSessions(ctx, cfg)
+	if err != nil {
+		a.logf("prompt search discovery warning err=%v", err)
+	}
+	userState := a.store.LoadUserState()
+	tasks := make([]cockpitapp.Task, 0, len(sessions))
+	for _, session := range sessions {
+		taskID := cockpitapp.TaskID(session)
+		tasks = append(tasks, cockpitapp.Task{
+			ID:       taskID,
+			Session:  session,
+			Archived: userState.Archived[taskID],
+			Ignored:  userState.Ignored[taskID],
+		})
+	}
+	snap := cockpitapp.Snapshot{BuiltAt: time.Now(), Tasks: tasks}
+	index, err := promptsearch.Open(promptsearch.DBPath(cfg.StateDir))
+	if err != nil {
+		return nil, 0, err
+	}
+	synced, err := index.Sync(snap, promptsearch.Retention)
+	if err != nil {
+		_ = index.Close()
+		return nil, 0, err
+	}
+	return index, synced, nil
+}
+
+func (a *App) warmPromptIndex() {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	index, synced, err := a.syncPromptIndex(ctx)
+	if index != nil {
+		_ = index.Close()
+	}
+	if err != nil {
+		a.logf("prompt index warmup failed err=%v", err)
+		return
+	}
+	a.logf("prompt index warmup synced=%d retention=%s db=%s", synced, promptsearch.Retention, promptsearch.DBPath(a.currentConfig().StateDir))
 }
 
 func (a *App) RefreshSummary(taskID string) (cockpitapp.Task, error) {
@@ -306,6 +416,15 @@ func (a *App) logf(format string, args ...any) {
 		return
 	}
 	a.logger.Printf(format, args...)
+}
+
+func compactLogString(text string, limit int) string {
+	text = strings.TrimSpace(text)
+	if limit <= 0 || len([]rune(text)) <= limit {
+		return text
+	}
+	runes := []rune(text)
+	return string(runes[:limit]) + "..."
 }
 
 func (a *App) logSnapshotOutcome(source string, snap cockpitapp.Snapshot, err error) {

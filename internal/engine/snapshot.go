@@ -90,7 +90,7 @@ func BuildSnapshot(ctx context.Context, cfg config.Config, store *app.Store) (ap
 	snap.Tasks = tasks
 	snap.Panes = panes
 	snap.Processes = processes
-	snap.Missions = buildMissions(tasks)
+	snap.Missions = buildMissions(tasks, userState.MissionNames)
 	if done, err := store.SyncDoneInbox(tasks); err != nil {
 		snap.Errors = append(snap.Errors, err.Error())
 	} else {
@@ -99,7 +99,7 @@ func BuildSnapshot(ctx context.Context, cfg config.Config, store *app.Store) (ap
 	return snap, nil
 }
 
-func buildMissions(tasks []app.Task) []app.Mission {
+func buildMissions(tasks []app.Task, customNames map[string]string) []app.Mission {
 	byKey := map[string]*app.Mission{}
 	for _, task := range tasks {
 		if task.Session.Internal || task.Archived || task.Ignored {
@@ -112,13 +112,20 @@ func buildMissions(tasks []app.Task) []app.Mission {
 			if task.Diff.RepoRoot != "" {
 				name = repoName(task.Diff.RepoRoot)
 			}
+			defaultName := name
+			customName := strings.TrimSpace(customNames[key])
+			if customName != "" {
+				name = customName
+			}
 			mission = &app.Mission{
-				ID:       key,
-				Name:     name,
-				CWD:      task.Session.CWD,
-				RepoRoot: task.Diff.RepoRoot,
-				Status:   task.Status,
-				Summary:  task.Summary,
+				ID:          key,
+				Name:        name,
+				DefaultName: defaultName,
+				Renamed:     customName != "",
+				CWD:         task.Session.CWD,
+				RepoRoot:    task.Diff.RepoRoot,
+				Status:      task.Status,
+				Summary:     task.Summary,
 			}
 			byKey[key] = mission
 		}
