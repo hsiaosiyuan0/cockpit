@@ -1,0 +1,35 @@
+frontend/src/App.tsx
+  7e6e02362e5fec10 160,183,185
+internal/macosactivity/activity_darwin.go
+  7e6e02362e5fec10 1-50
+main.go
+  7e6e02362e5fec10 29
+internal/macosactivity/activity_other.go
+  7e6e02362e5fec10 1-9
+app.go
+  7e6e02362e5fec10 20,38,43-45,48,57-61,97-99,102-114,123-159,161-166,168,171-179,184-221
+build/darwin/Info.plist
+  7e6e02362e5fec10 24-25
+internal/engine/snapshot.go
+  7e6e02362e5fec10 20-24,26-29,35,39-50,118-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "55908d56152867af300cad029cd64790b7ca183e",
+  "prompts": {
+    "7e6e02362e5fec10": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ddc4c-620e-77c0-83ef-46b3f0c7688b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "hsiaosiyuan0",
+      "messages": [],
+      "total_additions": 216,
+      "total_deletions": 13,
+      "accepted_lines": 578,
+      "overriden_lines": 0
+    }
+  }
+}
