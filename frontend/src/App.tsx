@@ -157,6 +157,7 @@ function App() {
   const readonly = runtimeInfo.readonly;
   const cockpitOwner = settings.cockpit_owner?.trim() ?? "";
   const welcomeOwnerKey = cockpitOwner || "__anonymous__";
+  const snapshotRefreshInterval = nativeRuntime ? 10000 : 5000;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -179,9 +180,9 @@ function App() {
 
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load(), 5000);
+    const timer = window.setInterval(() => void load(), snapshotRefreshInterval);
     return () => window.clearInterval(timer);
-  }, [load]);
+  }, [load, snapshotRefreshInterval]);
 
   useEffect(() => {
     let cancelled = false;

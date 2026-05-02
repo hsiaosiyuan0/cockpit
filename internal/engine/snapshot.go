@@ -17,21 +17,37 @@ import (
 	"cockpit/internal/wezterm"
 )
 
+type SnapshotOptions struct {
+	FallbackPanes     []app.Pane
+	FallbackPanesUsed *bool
+}
+
 func BuildSnapshot(ctx context.Context, cfg config.Config, store *app.Store) (app.Snapshot, error) {
+	return BuildSnapshotWithOptions(ctx, cfg, store, SnapshotOptions{})
+}
+
+func BuildSnapshotWithOptions(ctx context.Context, cfg config.Config, store *app.Store, options SnapshotOptions) (app.Snapshot, error) {
 	var snap app.Snapshot
 	snap.BuiltAt = time.Now()
 
-	sessions, err := discovery.DiscoverSessions(ctx, cfg)
-	if err != nil {
-		snap.Errors = append(snap.Errors, err.Error())
-	}
 	processes, err := process.List(ctx)
 	if err != nil {
-		snap.Errors = append(snap.Errors, err.Error())
+		snap.Errors = append(snap.Errors, "process list: "+err.Error())
 	}
 	panes, err := wezterm.ListPanes(ctx, cfg.WeztermBin)
 	if err != nil {
-		snap.Errors = append(snap.Errors, err.Error())
+		if len(options.FallbackPanes) > 0 {
+			panes = clonePanes(options.FallbackPanes)
+			if options.FallbackPanesUsed != nil {
+				*options.FallbackPanesUsed = true
+			}
+		} else {
+			snap.Errors = append(snap.Errors, "wezterm panes: "+err.Error())
+		}
+	}
+	sessions, err := discovery.DiscoverSessions(ctx, cfg)
+	if err != nil {
+		snap.Errors = append(snap.Errors, "discover sessions: "+err.Error())
 	}
 
 	userState := store.LoadUserState()
@@ -97,6 +113,15 @@ func BuildSnapshot(ctx context.Context, cfg config.Config, store *app.Store) (ap
 		snap.DoneInbox = done
 	}
 	return snap, nil
+}
+
+func clonePanes(panes []app.Pane) []app.Pane {
+	if len(panes) == 0 {
+		return nil
+	}
+	cloned := make([]app.Pane, len(panes))
+	copy(cloned, panes)
+	return cloned
 }
 
 func buildMissions(tasks []app.Task, customNames map[string]string) []app.Mission {

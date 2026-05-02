@@ -17,6 +17,7 @@ import (
 	"cockpit/internal/discovery"
 	"cockpit/internal/engine"
 	"cockpit/internal/execpath"
+	"cockpit/internal/macosactivity"
 	"cockpit/internal/notify"
 	"cockpit/internal/promptsearch"
 	"cockpit/internal/summary"
@@ -34,12 +35,17 @@ type App struct {
 	initErr error
 
 	mu                     sync.Mutex
+	snapshotMu             sync.Mutex
 	share                  *readonlyServer
 	seenStatuses           map[string]cockpitapp.Status
 	seenNotificationStates map[string]string
 	inputAlerts            map[string]inputAlert
+	paneCache              []cockpitapp.Pane
+	paneCacheAt            time.Time
+	monitorCancel          context.CancelFunc
 	lastSnapshotLogAt      time.Time
 	lastSnapshotSignature  string
+	lastPaneFallbackLogAt  time.Time
 	notifyReady            bool
 }
 
@@ -48,7 +54,11 @@ type inputAlert struct {
 	Reason string
 }
 
-const inputAlertTTL = 15 * time.Minute
+const (
+	inputAlertTTL             = 15 * time.Minute
+	backgroundMonitorInterval = 5 * time.Second
+	paneCacheTTL              = 5 * time.Minute
+)
 
 func NewApp() *App {
 	cfg, err := config.Load()
@@ -84,8 +94,24 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.logf("wails startup complete")
+	if macosactivity.Begin("Cockpit monitors Claude and Codex sessions in the background") {
+		a.logf("macos background activity started")
+	}
 	go a.setupNotifications(ctx)
 	go a.warmPromptIndex()
+	a.startBackgroundMonitor(ctx)
+}
+
+func (a *App) shutdown(ctx context.Context) {
+	a.mu.Lock()
+	cancel := a.monitorCancel
+	a.monitorCancel = nil
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	macosactivity.End()
+	a.logf("wails shutdown complete")
 }
 
 func (a *App) GetSnapshot() (cockpitapp.Snapshot, error) {
@@ -94,16 +120,105 @@ func (a *App) GetSnapshot() (cockpitapp.Snapshot, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
+	return a.buildMonitoredSnapshot(ctx, "app", true)
+}
+
+func (a *App) startBackgroundMonitor(parent context.Context) {
+	ctx, cancel := context.WithCancel(parent)
+	a.mu.Lock()
+	if a.monitorCancel != nil {
+		a.monitorCancel()
+	}
+	a.monitorCancel = cancel
+	a.mu.Unlock()
+	go a.backgroundMonitor(ctx)
+}
+
+func (a *App) backgroundMonitor(ctx context.Context) {
+	a.logf("background monitor started interval=%s", backgroundMonitorInterval)
+	timer := time.NewTimer(1200 * time.Millisecond)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			a.logf("background monitor stopped")
+			return
+		case <-timer.C:
+			runCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+			if _, err := a.buildMonitoredSnapshot(runCtx, "background", true); err != nil {
+				a.logf("background monitor refresh failed err=%v", err)
+			}
+			cancel()
+			timer.Reset(backgroundMonitorInterval)
+		}
+	}
+}
+
+func (a *App) buildMonitoredSnapshot(ctx context.Context, source string, notify bool) (cockpitapp.Snapshot, error) {
+	a.snapshotMu.Lock()
+	defer a.snapshotMu.Unlock()
 	cfg := a.currentConfig()
-	snap, err := engine.BuildSnapshot(ctx, cfg, a.store)
+	fallbackPanes := a.cachedPanes()
+	fallbackPanesUsed := false
+	snap, err := engine.BuildSnapshotWithOptions(ctx, cfg, a.store, engine.SnapshotOptions{
+		FallbackPanes:     fallbackPanes,
+		FallbackPanesUsed: &fallbackPanesUsed,
+	})
 	if err != nil {
-		a.logSnapshotOutcome("app", snap, err)
+		a.logSnapshotOutcome(source, snap, err)
 		return snap, err
 	}
-	a.logSnapshotOutcome("app", snap, nil)
-	a.notifyTransitions(ctx, snap.Tasks)
+	if !fallbackPanesUsed {
+		a.rememberPanes(snap.Panes)
+	} else {
+		a.logPaneFallback(source, len(snap.Panes))
+	}
+	a.logSnapshotOutcome(source, snap, nil)
+	if notify {
+		a.notifyTransitions(ctx, snap.Tasks)
+	}
 	a.applyInputAlerts(snap.Tasks)
 	return snap, nil
+}
+
+func (a *App) cachedPanes() []cockpitapp.Pane {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.paneCache) == 0 || time.Since(a.paneCacheAt) > paneCacheTTL {
+		return nil
+	}
+	return cloneAppPanes(a.paneCache)
+}
+
+func (a *App) rememberPanes(panes []cockpitapp.Pane) {
+	if len(panes) == 0 {
+		return
+	}
+	a.mu.Lock()
+	a.paneCache = cloneAppPanes(panes)
+	a.paneCacheAt = time.Now()
+	a.mu.Unlock()
+}
+
+func cloneAppPanes(panes []cockpitapp.Pane) []cockpitapp.Pane {
+	if len(panes) == 0 {
+		return nil
+	}
+	cloned := make([]cockpitapp.Pane, len(panes))
+	copy(cloned, panes)
+	return cloned
+}
+
+func (a *App) logPaneFallback(source string, count int) {
+	a.mu.Lock()
+	shouldLog := time.Since(a.lastPaneFallbackLogAt) > time.Minute
+	if shouldLog {
+		a.lastPaneFallbackLogAt = time.Now()
+	}
+	a.mu.Unlock()
+	if shouldLog {
+		a.logf("snapshot used cached panes source=%s panes=%d", source, count)
+	}
 }
 
 func (a *App) GetDemoSnapshot() cockpitapp.Snapshot {
