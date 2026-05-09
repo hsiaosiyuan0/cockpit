@@ -153,6 +153,7 @@ function App() {
   const [shareURL, setShareURL] = useState("");
   const [sharing, setSharing] = useState(false);
   const [webWelcomeOpen, setWebWelcomeOpen] = useState(false);
+  const loadInFlight = useRef(false);
   const showUnbound = settings.show_unbound;
   const readonly = runtimeInfo.readonly;
   const cockpitOwner = settings.cockpit_owner?.trim() ?? "";
@@ -160,6 +161,10 @@ function App() {
   const snapshotRefreshInterval = nativeRuntime ? 10000 : 5000;
 
   const load = useCallback(async () => {
+    if (loadInFlight.current) {
+      return;
+    }
+    loadInFlight.current = true;
     setLoading(true);
     try {
       const next = await getSnapshot(useDemo);
@@ -174,6 +179,7 @@ function App() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "snapshot refresh failed");
     } finally {
+      loadInFlight.current = false;
       setLoading(false);
     }
   }, [showHidden, showUnbound, useDemo]);

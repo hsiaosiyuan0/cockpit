@@ -13,7 +13,6 @@ import (
 	"time"
 
 	cockpitapp "cockpit/internal/app"
-	"cockpit/internal/engine"
 )
 
 const readonlyServerDefaultAddr = "0.0.0.0:17373"
@@ -133,14 +132,11 @@ func (a *App) readonlySnapshotHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	snap, err := engine.BuildSnapshot(ctx, a.currentConfig(), a.store)
+	snap, err := a.buildMonitoredSnapshot(ctx, "readonly", false)
 	if err != nil {
-		a.logSnapshotOutcome("readonly", snap, err)
 		writeReadonlyError(w, http.StatusInternalServerError, err)
 		return
 	}
-	a.logSnapshotOutcome("readonly", snap, nil)
-	a.applyInputAlerts(snap.Tasks)
 	writeReadonlyJSON(w, snap)
 }
 

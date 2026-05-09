@@ -382,6 +382,7 @@ func (a *App) searchPromptResults(ctx context.Context, query string) ([]cockpita
 	if results == nil {
 		results = []cockpitapp.PromptSearchResult{}
 	}
+	cockpitapp.SanitizePromptSearchResults(results)
 	a.logf("prompt index search synced=%d results=%d", synced, len(results))
 	return results, nil
 }
@@ -477,6 +478,7 @@ func (a *App) RefreshSummary(taskID string) (cockpitapp.Task, error) {
 		a.logf("summary failed task=%s err=%v", task.ID, err)
 		return task, err
 	}
+	cockpitapp.SanitizeTask(&task)
 	a.logf("summary completed task=%s", task.ID)
 	return task, nil
 }
@@ -510,6 +512,7 @@ func (a *App) GenerateDebrief(taskID string) (cockpitapp.Task, error) {
 		a.logf("debrief failed task=%s err=%v", task.ID, err)
 		return task, err
 	}
+	cockpitapp.SanitizeTask(&task)
 	a.logf("debrief completed task=%s", task.ID)
 	return task, nil
 }

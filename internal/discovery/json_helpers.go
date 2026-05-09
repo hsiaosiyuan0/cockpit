@@ -86,7 +86,7 @@ func addEvent(session *app.Session, event app.Event) {
 }
 
 func compact(text string, limit int) string {
-	text = strings.ToValidUTF8(text, "")
+	text = app.CleanString(text)
 	text = redact.Text(text)
 	text = strings.TrimSpace(strings.Join(strings.Fields(text), " "))
 	if limit <= 0 || len([]rune(text)) <= limit {

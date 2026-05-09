@@ -97,6 +97,9 @@ func BuildSnapshotWithOptions(ctx context.Context, cfg config.Config, store *app
 		task.Flight = flight.Build(task)
 		tasks = append(tasks, task)
 	}
+	for i := range tasks {
+		app.SanitizeTask(&tasks[i])
+	}
 	sort.SliceStable(tasks, func(i, j int) bool {
 		if tasks[i].Status != tasks[j].Status {
 			return app.StatusRank(tasks[i].Status) < app.StatusRank(tasks[j].Status)
@@ -112,6 +115,7 @@ func BuildSnapshotWithOptions(ctx context.Context, cfg config.Config, store *app
 	} else {
 		snap.DoneInbox = done
 	}
+	app.SanitizeSnapshot(&snap)
 	return snap, nil
 }
 
